@@ -1,0 +1,15 @@
+export const SUGGESTIONS: string[] = [
+  "Tell me a joke about JavaScript",
+  "Explain React hooks",
+  "What is TypeScript?",
+  "How does async/await work?",
+  "let vs const vs var?",
+  "Explain closures in JS",
+  "Why use TypeScript?",
+  "Explain React's virtual DOM",
+  "How does CSS Grid work?",
+  "Explain == and === in JavaScript",
+  "What is a promise in JavaScript?",
+  "SQL vs NoSQL databases",
+  "How does Git branching work?",
+];
