@@ -18,13 +18,9 @@ import {
   PromptInputTextarea,
   PromptInputSubmit,
 } from "@/components/ai-elements/prompt-input";
-import { useSidebar } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/ui/shadcn-io/navbar";
-import { SidebarIcon } from "lucide-react";
 
 export default function Chat() {
-  const { toggleSidebar } = useSidebar();
   const [input, setInput] = useState("");
   const { messages, sendMessage, status } = useChat();
 
@@ -33,9 +29,6 @@ export default function Chat() {
   return (
     <div className="flex flex-col w-full h-screen">
       <Navbar />
-      <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-        <SidebarIcon />
-      </Button>
       <Conversation>
         <ConversationContent>
           {messages.length === 0 ? (
