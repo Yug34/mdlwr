@@ -3,6 +3,7 @@ export const SUGGESTIONS: string[] = [
   "Explain React hooks",
   "What is TypeScript?",
   "How does async/await work?",
+  "Fibonacci in JS",
   "let vs const vs var?",
   "Explain closures in JS",
   "Why use TypeScript?",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import {
   Conversation,
@@ -25,7 +25,12 @@ import { getRandomSuggestions } from "@/lib/utils";
 export default function Chat() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, status } = useChat();
-  const randomSuggestions = getRandomSuggestions();
+  const [randomSuggestions, setRandomSuggestions] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Generate random suggestions only on client side to avoid hydration mismatch
+    setRandomSuggestions(getRandomSuggestions());
+  }, []);
 
   const isLoading = status === "streaming" || status === "submitted";
 

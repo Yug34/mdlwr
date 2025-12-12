@@ -150,22 +150,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
           </div>
           {/* Right side */}
           <div className="flex items-center gap-3">
-            {isAuthenticated ? (
-              <>
-                <div>{user?.email}</div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    logout();
-                  }}
-                >
-                  Logout
-                </Button>
-              </>
-            ) : (
+            {!isAuthenticated && (
               <>
                 <Button
                   variant="ghost"
