@@ -2,6 +2,7 @@ import { streamText, convertToModelMessages } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createSupabaseClient } from "@/lib/supabase";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import { getOrCreateUser } from "@/lib/supabase/users";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -15,24 +16,24 @@ export async function POST(req: Request) {
 
     const supabase = createSupabaseClient();
 
-    // Get authenticated user from Kinde session
+    // Get authenticated user from Kinde session and ensure they exist in Supabase
     let userId: string | null = null;
     const { getUser } = getKindeServerSession();
     const user = await getUser();
 
-    // If we have a Kinde user, look them up in the database
-    if (user?.id) {
-      const { data: dbUser, error: userError } = await supabase
-        .from("users")
-        .select("id")
-        .eq("kinde_user_id", user.id)
-        .single();
-
-      if (!userError && dbUser) {
-        userId = dbUser.id;
-        console.log("Found user ID:", userId);
-      } else if (userError) {
-        console.log("User not found in database for kinde_user_id:", user.id);
+    // Get or create user in Supabase
+    if (user) {
+      userId = await getOrCreateUser(user);
+      if (!userId) {
+        return new Response(
+          JSON.stringify({
+            error: "Failed to create or retrieve user",
+          }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
       }
     }
 
@@ -182,7 +183,10 @@ export async function POST(req: Request) {
         console.error("Error getting stream text:", error);
       });
 
-    return result.toUIMessageStreamResponse();
+    // Add conversationId to response headers so frontend can update URL
+    const response = result.toUIMessageStreamResponse();
+    response.headers.set("X-Conversation-Id", finalConversationId);
+    return response;
   } catch (error) {
     console.error("Chat API error:", error);
 

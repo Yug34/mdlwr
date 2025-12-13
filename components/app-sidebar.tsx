@@ -23,6 +23,7 @@ import {
 } from "@kinde-oss/kinde-auth-nextjs/server";
 import { Button } from "./ui/button";
 import { SidebarMenuItems } from "./sidebar-menu-items";
+import { ConversationList } from "./conversation-list";
 
 export async function AppSidebar() {
   const { getUser, isAuthenticated } = getKindeServerSession();
@@ -39,6 +40,16 @@ export async function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {(await isAuthenticated()) && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Conversations</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <ConversationList />
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       {(await isAuthenticated()) && (
         <SidebarFooter>

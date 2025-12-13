@@ -1,28 +1,29 @@
 "use client";
 
 import { Inbox, Plus } from "lucide-react";
-import {
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
-
-// Menu items.
-const items = [
-  {
-    title: "New Chat",
-    icon: Plus,
-    onClick: () => {
-      console.log("New Chat");
-    },
-  },
-  {
-    title: "Inbox",
-    url: "#",
-    icon: Inbox,
-  },
-];
+import { useRouter } from "next/navigation";
+import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 
 export function SidebarMenuItems() {
+  const router = useRouter();
+
+  // Menu items.
+  const items = [
+    {
+      title: "New Chat",
+      icon: Plus,
+      onClick: () => {
+        // Navigate to root to start a new conversation
+        router.push("/");
+      },
+    },
+    {
+      title: "Inbox",
+      url: "#",
+      icon: Inbox,
+    },
+  ];
+
   return (
     <>
       {items.map((item) => (
@@ -38,4 +39,3 @@ export function SidebarMenuItems() {
     </>
   );
 }
-

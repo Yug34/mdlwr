@@ -14,4 +14,3 @@ export async function NavbarServer(props: NavbarProps) {
     />
   );
 }
-
