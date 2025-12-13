@@ -11,9 +11,6 @@ export async function POST(req: Request) {
   try {
     const { messages, conversationId } = await req.json();
 
-    console.log("messages", messages);
-    console.log("conversationId", conversationId);
-
     const supabase = createSupabaseClient();
 
     // Get authenticated user from Kinde session and ensure they exist in Supabase
@@ -39,23 +36,137 @@ export async function POST(req: Request) {
 
     // Create conversation ID if chat is empty (no conversationId provided)
     let finalConversationId = conversationId;
-    if (!finalConversationId) {
-      const { data: newConversation, error: convError } = await supabase
-        .from("conversations")
-        .insert({
-          title: null,
-          user_id: userId,
-        })
-        .select()
-        .single();
 
-      if (convError) {
-        console.error("Error creating conversation:", convError);
-        throw new Error("Failed to create conversation");
+    // Only create a new conversation if conversationId is truly missing (null, undefined, or empty string)
+    // If a conversationId is provided, verify it exists and belongs to the user
+    if (!finalConversationId || finalConversationId.trim() === "") {
+      // Before creating a new conversation, check if any messages in the current session
+      // already exist in the database and have a conversation_id
+      let foundConversationId: string | null = null;
+
+      if (messages && Array.isArray(messages) && messages.length > 0) {
+        // Find messages that have IDs (indicating they're already in the database)
+        const messageIds = messages
+          .map((msg: any) => msg.id)
+          .filter((id: any) => id && typeof id === "string");
+
+        if (messageIds.length > 0) {
+          // Query the database to get conversation_id from existing messages
+          const { data: existingMessages, error: msgError } = await supabase
+            .from("messages")
+            .select("conversation_id")
+            .in("id", messageIds)
+            .limit(1);
+
+          if (!msgError && existingMessages && existingMessages.length > 0) {
+            foundConversationId = existingMessages[0].conversation_id;
+            console.log(
+              "Found existing conversation from previous messages:",
+              foundConversationId
+            );
+          }
+        }
       }
 
-      finalConversationId = newConversation.id;
-      console.log("Created new conversation:", finalConversationId);
+      // If we found a conversation ID from existing messages, use it
+      if (foundConversationId) {
+        // Verify the conversation exists and belongs to the user
+        const { data: existingConv, error: convCheckError } = await supabase
+          .from("conversations")
+          .select("id, user_id")
+          .eq("id", foundConversationId)
+          .single();
+
+        if (
+          !convCheckError &&
+          existingConv &&
+          existingConv.user_id === userId
+        ) {
+          finalConversationId = foundConversationId;
+          console.log(
+            "Using conversation from previous messages:",
+            finalConversationId
+          );
+        } else {
+          // Conversation doesn't exist or doesn't belong to user, create new one
+          const { data: newConversation, error: convError } = await supabase
+            .from("conversations")
+            .insert({
+              title: null,
+              user_id: userId,
+            })
+            .select()
+            .single();
+
+          if (convError) {
+            console.error("Error creating conversation:", convError);
+            throw new Error("Failed to create conversation");
+          }
+
+          finalConversationId = newConversation.id;
+          console.log("Created new conversation:", finalConversationId);
+        }
+      } else {
+        // No existing messages found, create a new conversation
+        const { data: newConversation, error: convError } = await supabase
+          .from("conversations")
+          .insert({
+            title: null,
+            user_id: userId,
+          })
+          .select()
+          .single();
+
+        if (convError) {
+          console.error("Error creating conversation:", convError);
+          throw new Error("Failed to create conversation");
+        }
+
+        finalConversationId = newConversation.id;
+        console.log("Created new conversation:", finalConversationId);
+      }
+    } else {
+      // Verify the conversation exists and belongs to the user
+      const { data: existingConv, error: convCheckError } = await supabase
+        .from("conversations")
+        .select("id, user_id")
+        .eq("id", finalConversationId)
+        .single();
+
+      if (convCheckError || !existingConv) {
+        console.error(
+          "Conversation not found or access denied:",
+          finalConversationId
+        );
+        // If conversation doesn't exist, create a new one
+        const { data: newConversation, error: convError } = await supabase
+          .from("conversations")
+          .insert({
+            title: null,
+            user_id: userId,
+          })
+          .select()
+          .single();
+
+        if (convError) {
+          console.error("Error creating conversation:", convError);
+          throw new Error("Failed to create conversation");
+        }
+
+        finalConversationId = newConversation.id;
+        console.log(
+          "Created new conversation (previous not found):",
+          finalConversationId
+        );
+      } else if (existingConv.user_id !== userId) {
+        console.error("Conversation access denied for user:", userId);
+        return new Response(
+          JSON.stringify({ error: "Unauthorized access to conversation" }),
+          { status: 403, headers: { "Content-Type": "application/json" } }
+        );
+      } else {
+        console.log("Using existing conversation:", finalConversationId);
+      }
     }
 
     const openai = createOpenAI({

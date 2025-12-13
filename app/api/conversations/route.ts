@@ -3,6 +3,58 @@ import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/supabase/users";
 
+export async function POST() {
+  try {
+    const supabase = createSupabaseClient();
+
+    // Get authenticated user from Kinde session and ensure they exist in Supabase
+    const { getUser } = getKindeServerSession();
+    const user = await getUser();
+
+    if (!user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get or create user in Supabase
+    const userId = await getOrCreateUser(user);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Failed to create or retrieve user" },
+        { status: 500 }
+      );
+    }
+
+    // Create a new conversation
+    const { data: newConversation, error: convError } = await supabase
+      .from("conversations")
+      .insert({
+        title: null,
+        user_id: userId,
+      })
+      .select()
+      .single();
+
+    if (convError) {
+      console.error("Error creating conversation:", convError);
+      return NextResponse.json(
+        { error: "Failed to create conversation" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ conversationId: newConversation.id });
+  } catch (error) {
+    console.error("Conversations API error:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to process request",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
+
 export async function GET() {
   try {
     const supabase = createSupabaseClient();

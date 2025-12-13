@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 import {
@@ -33,27 +33,185 @@ export function ChatClient() {
   const [randomSuggestions, setRandomSuggestions] = useState<string[]>([]);
   const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false);
 
+  // Use a ref to always have the latest conversationId in the body function
+  const conversationIdRef = useRef<string | null>(conversationId);
+
+  // Update ref whenever conversationId changes
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
   // Sync conversationId with URL params
   useEffect(() => {
     setConversationId(urlConversationId);
+    // Also update ref immediately when URL changes
+    conversationIdRef.current = urlConversationId;
   }, [urlConversationId]);
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  // Custom fetch to intercept and modify the request body
+  // Note: We don't include searchParams in dependencies to avoid recreating the function
+  // Instead, we'll read from window.location or use a ref
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  }, [searchParams]);
+
+  const customFetch = useCallback(
+    async (url: string, options: RequestInit = {}) => {
+      // Only intercept POST requests to /api/chat
+      if (options.method === "POST" && url.includes("/api/chat")) {
+        // Always get the latest conversationId from URL params first, then fall back to ref/state
+        // Use ref to get latest searchParams without recreating the function
+        const urlId = searchParamsRef.current.get("conversationId");
+        const currentId = urlId || conversationIdRef.current || conversationId;
+
+        // If there's a body, parse it, add conversationId, and stringify it back
+        if (options.body) {
+          try {
+            let bodyStr: string;
+
+            if (typeof options.body === "string") {
+              bodyStr = options.body;
+            } else {
+              // For other types (ReadableStream, Blob, etc.), read as text
+              bodyStr = await new Response(options.body as BodyInit).text();
+            }
+
+            const bodyObj = JSON.parse(bodyStr);
+            bodyObj.conversationId = currentId || undefined;
+            options.body = JSON.stringify(bodyObj);
+          } catch (error) {
+            console.error("Error modifying body:", error);
+          }
+        } else {
+          // If no body, create one with conversationId
+          options.body = JSON.stringify({
+            conversationId: currentId || undefined,
+          });
+        }
+      }
+
+      // Call the original fetch
+      return fetch(url, options);
+    },
+    [conversationId]
+  );
+
+  const {
+    messages,
+    sendMessage: originalSendMessage,
+    status,
+    setMessages,
+  } = useChat({
     api: "/api/chat",
-    body: () => ({
-      conversationId: conversationId || undefined,
-    }),
+    fetch: customFetch,
     initialMessages: [],
-    onResponse: (response) => {
+    onResponse: (response: Response) => {
       // Capture conversationId from response headers and update URL if needed
       const newConversationId = response.headers.get("X-Conversation-Id");
-      if (newConversationId && !conversationId) {
-        // Update state and URL with the new conversationId
-        setConversationId(newConversationId);
-        router.replace(`/?conversationId=${newConversationId}`);
+      if (newConversationId) {
+        // Update ref immediately so next message uses the correct conversationId
+        conversationIdRef.current = newConversationId;
+        // Update state and URL if different
+        if (newConversationId !== conversationId) {
+          setConversationId(newConversationId);
+          router.replace(`/?conversationId=${newConversationId}`);
+        }
       }
     },
-  });
+  } as any);
+
+  // Wrap sendMessage to intercept and modify the request
+  // Since useChat's custom fetch isn't being called, we'll patch fetch globally for this component
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    const patchedFetch = async (
+      input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      // Only intercept POST requests to /api/chat
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+          ? input.toString()
+          : input.url;
+      if (init?.method === "POST" && url.includes("/api/chat")) {
+        // Get latest conversationId
+        const currentId =
+          searchParamsRef.current.get("conversationId") ||
+          conversationIdRef.current ||
+          conversationId;
+
+        if (init?.body) {
+          try {
+            let bodyStr: string;
+            if (typeof init.body === "string") {
+              bodyStr = init.body;
+            } else {
+              bodyStr = await new Response(init.body as BodyInit).text();
+            }
+
+            const bodyObj = JSON.parse(bodyStr);
+            bodyObj.conversationId = currentId || undefined;
+            init.body = JSON.stringify(bodyObj);
+          } catch (error) {
+            console.error("Error modifying body in patched fetch:", error);
+          }
+        } else {
+          init = init || {};
+          init.body = JSON.stringify({
+            conversationId: currentId || undefined,
+          });
+        }
+      }
+      return originalFetch(input, init);
+    };
+
+    window.fetch = patchedFetch;
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [conversationId]);
+
+  // Wrap sendMessage to create conversationId before first message if needed
+  const sendMessage = useCallback(
+    async (message: any) => {
+      // If no conversationId exists and this is the first message, create one
+      const currentId =
+        urlConversationId || conversationIdRef.current || conversationId;
+      if (!currentId && messages.length === 0) {
+        try {
+          const response = await fetch("/api/conversations", {
+            method: "POST",
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const newConversationId = data.conversationId;
+
+            // Update ref, state, and URL immediately
+            conversationIdRef.current = newConversationId;
+            setConversationId(newConversationId);
+            router.replace(`/?conversationId=${newConversationId}`);
+          }
+        } catch (error) {
+          console.error("Error creating conversation:", error);
+          // Continue anyway - backend will create conversation
+        }
+      }
+
+      // Call original sendMessage
+      return originalSendMessage(message);
+    },
+    [
+      originalSendMessage,
+      urlConversationId,
+      conversationId,
+      messages.length,
+      router,
+    ]
+  );
 
   useEffect(() => {
     // Generate random suggestions only on client side to avoid hydration mismatch
@@ -108,6 +266,7 @@ export function ChatClient() {
   const isLoading = status === "streaming" || status === "submitted";
 
   const handleSuggestionClick = (suggestion: string) => {
+    console.log("🟢 handleSuggestionClick called with:", suggestion);
     sendMessage({ text: suggestion });
   };
 
@@ -149,6 +308,10 @@ export function ChatClient() {
             onSubmit={(message, event) => {
               event.preventDefault();
               if (message.text) {
+                console.log(
+                  "🟢 PromptInput onSubmit called with:",
+                  message.text
+                );
                 sendMessage({ text: message.text });
                 setInput("");
               }
