@@ -1,6 +1,4 @@
-"use client";
-
-import { Inbox, Plus, User2, ChevronUp } from "lucide-react";
+import { ChevronUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,28 +17,16 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useKindeAuth } from "@kinde-oss/kinde-auth-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  getKindeServerSession,
+  LogoutLink,
+} from "@kinde-oss/kinde-auth-nextjs/server";
 import { Button } from "./ui/button";
+import { SidebarMenuItems } from "./sidebar-menu-items";
 
-// Menu items.
-const items = [
-  {
-    title: "New Chat",
-    icon: Plus,
-    onClick: () => {
-      console.log("New Chat");
-    },
-  },
-  {
-    title: "Inbox",
-    url: "#",
-    icon: Inbox,
-  },
-];
-
-export function AppSidebar() {
-  const { login, register, isAuthenticated, user, logout } = useKindeAuth();
+export async function AppSidebar() {
+  const { getUser, isAuthenticated } = getKindeServerSession();
+  const user = await getUser();
 
   return (
     <Sidebar>
@@ -49,21 +35,12 @@ export function AppSidebar() {
           <SidebarGroupLabel>Application</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <button onClick={item.onClick} className="cursor-pointer">
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </button>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItems />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      {isAuthenticated && (
+      {(await isAuthenticated()) && (
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -71,8 +48,8 @@ export function AppSidebar() {
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton className="cursor-pointer">
                     <span className="text-sm font-medium rounded-full w-8 h-8 flex items-center justify-center border border-gray-400 border-2 leading-none">
-                      {user?.givenName?.charAt(0)}
-                      {user?.familyName?.charAt(0)}
+                      {user?.given_name?.charAt(0)}
+                      {user?.family_name?.charAt(0)}
                     </span>
                     <ChevronUp className="ml-auto" />
                   </SidebarMenuButton>
@@ -82,9 +59,11 @@ export function AppSidebar() {
                   className="w-[--radix-popper-anchor-width]"
                 >
                   <DropdownMenuItem>
-                    <Button variant="ghost" size="sm" onClick={() => logout()}>
-                      Sign out
-                    </Button>
+                    <LogoutLink>
+                      <Button variant="ghost" size="sm">
+                        Sign out
+                      </Button>
+                    </LogoutLink>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

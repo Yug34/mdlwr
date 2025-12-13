@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "../../sidebar";
 import { SidebarIcon } from "lucide-react";
-import { useKindeAuth } from "@kinde-oss/kinde-auth-react";
+import { RegisterLink, LoginLink } from "@kinde-oss/kinde-auth-nextjs/server";
 
 // Simple logo component for the navbar
 const Logo = (props: React.SVGAttributes<SVGElement>) => {
@@ -84,6 +84,8 @@ export interface NavbarProps extends React.HTMLAttributes<HTMLElement> {
   logo?: React.ReactNode;
   logoHref?: string;
   navigationLinks?: NavbarNavLink[];
+  isAuthenticated?: boolean;
+  userEmail?: string | null;
 }
 
 // Default navigation links
@@ -101,14 +103,14 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
       logo = <Logo />,
       logoHref = "#",
       navigationLinks = defaultNavigationLinks,
+      isAuthenticated = false,
+      userEmail = null,
       ...props
     },
     ref
   ) => {
     const { toggleSidebar } = useSidebar();
-    const { login, register, isAuthenticated, user, logout } = useKindeAuth();
 
-    // Combine refs
     const combinedRef = React.useCallback(
       (node: HTMLElement | null) => {
         if (typeof ref === "function") {
@@ -150,30 +152,28 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
           </div>
           {/* Right side */}
           <div className="flex items-center gap-3">
-            {!isAuthenticated && (
+            {!isAuthenticated ? (
               <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    login();
-                  }}
-                >
-                  Sign In
-                </Button>
-                <Button
-                  size="sm"
-                  className="text-sm font-medium px-4 h-9 rounded-md shadow-sm"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    register();
-                  }}
-                >
-                  Sign Up
-                </Button>
+                <LoginLink>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                  >
+                    Sign In
+                  </Button>
+                </LoginLink>
+                <RegisterLink>
+                  <Button
+                    size="sm"
+                    className="text-sm font-medium px-4 h-9 rounded-md shadow-sm"
+                  >
+                    Sign Up
+                  </Button>
+                </RegisterLink>
               </>
+            ) : (
+              <div>user: {userEmail}</div>
             )}
           </div>
         </div>
