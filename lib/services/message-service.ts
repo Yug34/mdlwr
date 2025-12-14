@@ -160,21 +160,81 @@ export class MessageService {
       }),
     }).catch(() => {});
     // #endregion
-    await this.conversationsRepo.updateTitle(conversationId, title);
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "message-service.ts:85",
-        message: "Title update completed",
-        data: { conversationId, title },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "B",
-      }),
-    }).catch(() => {});
-    // #endregion
+    try {
+      await this.conversationsRepo.updateTitle(conversationId, title);
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "message-service.ts:163",
+            message: "Title update completed successfully",
+            data: { conversationId, title },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "F",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
+
+      // Verify the title was actually set by reading it back
+      const verifyTitle = await this.conversationsRepo.getTitle(conversationId);
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "message-service.ts:175",
+            message: "Title verification after update",
+            data: {
+              conversationId,
+              expectedTitle: title,
+              actualTitle: verifyTitle,
+              matches: verifyTitle === title,
+              isNull: verifyTitle === null,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "F",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
+    } catch (error) {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "message-service.ts:193",
+            message: "ERROR in updateTitle",
+            data: {
+              conversationId,
+              title,
+              errorMessage:
+                error instanceof Error ? error.message : String(error),
+              errorStack: error instanceof Error ? error.stack : undefined,
+              errorName: error instanceof Error ? error.name : undefined,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "F",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
+      // Re-throw to let the caller handle it
+      throw error;
+    }
   }
 }

@@ -162,6 +162,29 @@ export async function POST(req: Request) {
       result.text
         .then(async (fullText) => {
           try {
+            // #region agent log
+            fetch(
+              "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  location: "chat/route.ts:163",
+                  message: "About to store messages",
+                  data: {
+                    conversationId: finalConversationId,
+                    userId,
+                    hasUserMessage: !!lastUserMessage,
+                    assistantContentLength: fullText?.length,
+                  },
+                  timestamp: Date.now(),
+                  sessionId: "debug-session",
+                  runId: "run1",
+                  hypothesisId: "F",
+                }),
+              }
+            ).catch(() => {});
+            // #endregion
             const messageService = new MessageService();
             await messageService.storeMessages({
               conversationId: finalConversationId,
@@ -169,11 +192,82 @@ export async function POST(req: Request) {
               assistantContent: fullText,
               userId,
             });
+            // #region agent log
+            fetch(
+              "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  location: "chat/route.ts:178",
+                  message: "storeMessages completed successfully",
+                  data: {
+                    conversationId: finalConversationId,
+                    userId,
+                  },
+                  timestamp: Date.now(),
+                  sessionId: "debug-session",
+                  runId: "run1",
+                  hypothesisId: "F",
+                }),
+              }
+            ).catch(() => {});
+            // #endregion
           } catch (error) {
+            // #region agent log
+            fetch(
+              "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  location: "chat/route.ts:190",
+                  message: "ERROR storing messages",
+                  data: {
+                    conversationId: finalConversationId,
+                    userId,
+                    errorMessage:
+                      error instanceof Error ? error.message : String(error),
+                    errorStack:
+                      error instanceof Error ? error.stack : undefined,
+                    errorName: error instanceof Error ? error.name : undefined,
+                  },
+                  timestamp: Date.now(),
+                  sessionId: "debug-session",
+                  runId: "run1",
+                  hypothesisId: "F",
+                }),
+              }
+            ).catch(() => {});
+            // #endregion
             console.error("Error storing messages:", error);
           }
         })
         .catch((error) => {
+          // #region agent log
+          fetch(
+            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                location: "chat/route.ts:210",
+                message: "ERROR getting stream text",
+                data: {
+                  conversationId: finalConversationId,
+                  userId,
+                  errorMessage:
+                    error instanceof Error ? error.message : String(error),
+                  errorStack: error instanceof Error ? error.stack : undefined,
+                },
+                timestamp: Date.now(),
+                sessionId: "debug-session",
+                runId: "run1",
+                hypothesisId: "F",
+              }),
+            }
+          ).catch(() => {});
+          // #endregion
           console.error("Error getting stream text:", error);
         });
     }

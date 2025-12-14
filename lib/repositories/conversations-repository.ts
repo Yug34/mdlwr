@@ -152,18 +152,116 @@ export class ConversationsRepository {
    * Update conversation title
    */
   async updateTitle(conversationId: string, title: string): Promise<void> {
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "conversations-repository.ts:154",
+        message: "updateTitle called",
+        data: {
+          conversationId,
+          title,
+          titleType: typeof title,
+          titleLength: title?.length,
+          isNull: title === null,
+          isUndefined: title === undefined,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "F",
+      }),
+    }).catch(() => {});
+    // #endregion
     const supabase = createSupabaseClient();
 
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from("conversations")
       .update({ title })
-      .eq("id", conversationId);
+      .eq("id", conversationId)
+      .select();
+
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "conversations-repository.ts:162",
+        message: "updateTitle database response",
+        data: {
+          conversationId,
+          hasError: !!error,
+          errorMessage: error?.message,
+          errorCode: error?.code,
+          errorDetails: error?.details,
+          updatedRows: data?.length,
+          updatedTitle: data?.[0]?.title,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "F",
+      }),
+    }).catch(() => {});
+    // #endregion
 
     if (error) {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "conversations-repository.ts:167",
+            message: "updateTitle ERROR - throwing DatabaseError",
+            data: {
+              conversationId,
+              title,
+              errorMessage: error.message,
+              errorCode: error.code,
+              errorDetails: error.details,
+              errorHint: error.hint,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "F",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
       throw new DatabaseError(
         `Failed to update conversation title: ${error.message}`,
         error
       );
+    }
+
+    // Verify the update actually worked
+    if (!data || data.length === 0) {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "conversations-repository.ts:185",
+            message: "updateTitle WARNING - no rows updated",
+            data: {
+              conversationId,
+              title,
+              dataLength: data?.length,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "F",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
     }
   }
 
