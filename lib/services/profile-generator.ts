@@ -1,14 +1,16 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
-
-export interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  parts?: any;
-  created_at: string;
-}
+import { ConversationMessage } from "@/lib/types";
+import {
+  DEFAULT_CHAT_MODEL,
+  CLASSIFICATION_MODEL,
+  PROFILE_GENERATION_MAX_TOKENS,
+} from "@/lib/constants/ai-config";
+import {
+  RECENT_CONVERSATION_DAYS,
+  MAX_RECENT_CONVERSATIONS,
+} from "@/lib/constants/conversation-config";
 
 /**
  * Fetch recent conversations for a user
@@ -18,22 +20,22 @@ export interface Message {
  */
 export async function fetchRecentConversations(
   userId: string
-): Promise<Message[]> {
+): Promise<ConversationMessage[]> {
   const supabase = createSupabaseClient();
 
-  // Calculate date 30 days ago
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
+  // Calculate date N days ago
+  const daysAgo = new Date();
+  daysAgo.setDate(daysAgo.getDate() - RECENT_CONVERSATION_DAYS);
+  const daysAgoISO = daysAgo.toISOString();
 
-  // First, get recent conversations (last 30 days or last 10)
+  // First, get recent conversations
   const { data: conversations, error: convError } = await supabase
     .from("conversations")
     .select("id, created_at")
     .eq("user_id", userId)
-    .gte("created_at", thirtyDaysAgoISO)
+    .gte("created_at", daysAgoISO)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(MAX_RECENT_CONVERSATIONS);
 
   if (convError) {
     console.error("Error fetching conversations:", convError);
@@ -55,7 +57,10 @@ export async function fetchRecentConversations(
       return [];
     }
 
-    return (messages || []) as Message[];
+    return (messages || []).filter(
+      (msg): msg is ConversationMessage =>
+        msg.role === "user" || msg.role === "assistant"
+    );
   }
 
   return [];
@@ -68,7 +73,7 @@ export async function fetchRecentConversations(
  * @returns Generated personality profile text
  */
 export async function generatePersonalityProfile(
-  messages: Message[],
+  messages: ConversationMessage[],
   openai: ReturnType<typeof createOpenAI>
 ): Promise<string> {
   if (messages.length === 0) {
@@ -82,15 +87,17 @@ export async function generatePersonalityProfile(
         typeof msg.content === "string"
           ? msg.content
           : msg.parts
-            ?.map((part: any) => (part.type === "text" ? part.text : ""))
-            .join("") || "";
+              ?.map((part) =>
+                part.type === "text" && part.text ? part.text : ""
+              )
+              .join("") || "";
       return `${msg.role === "user" ? "User" : "Assistant"}: ${content}`;
     })
     .join("\n\n");
 
   // Generate profile using LLM
   const result = await generateText({
-    model: openai("gpt-4.1"),
+    model: openai(DEFAULT_CHAT_MODEL),
     prompt: `Analyze the following conversation history and create a personality profile of the user. 
 Focus on consistent patterns, interests, communication style, preferences, and personality traits that appear across multiple conversations.
 
@@ -107,7 +114,6 @@ Create a natural, readable personality profile (200-500 words) that describes:
 Write it as if you're describing a friend - natural and conversational, not clinical or bullet-pointed. Format it as a cohesive narrative.
 
 Personality Profile:`,
-    maxTokens: 1000,
   });
 
   return result.text;
@@ -129,7 +135,7 @@ export async function isSelfReferenceQuery(
 
   try {
     const result = await generateText({
-      model: openai("gpt-4o-mini"), // Use cheaper model for classification
+      model: openai(CLASSIFICATION_MODEL), // Use cheaper model for classification
       prompt: `Classify if this user message is asking about themselves, their personality, or what the assistant knows about them.
 
 Respond with ONLY "yes" or "no" - nothing else.
@@ -154,7 +160,6 @@ Examples of NOT self-reference (respond "no"):
 - "What's the weather?"
 
 Classification:`,
-      maxTokens: 5,
       temperature: 0,
     });
 
@@ -166,5 +171,3 @@ Classification:`,
     return false;
   }
 }
-
-

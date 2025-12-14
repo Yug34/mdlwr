@@ -1,7 +1,9 @@
-import { createSupabaseClient } from "@/lib/supabase";
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { NextResponse } from "next/server";
-import { getOrCreateUser } from "@/lib/supabase/users";
+import { requireAuth } from "@/lib/api/auth-helpers";
+import { handleApiError } from "@/lib/api/error-handler";
+import { ConversationsRepository } from "@/lib/repositories/conversations-repository";
+import { MessagesRepository } from "@/lib/repositories/messages-repository";
+import { GetMessagesResponse } from "@/lib/types";
 
 export async function GET(
   req: Request,
@@ -9,75 +11,30 @@ export async function GET(
 ) {
   try {
     const { conversationId } = await params;
-    const supabase = createSupabaseClient();
 
-    // Get authenticated user from Kinde session and ensure they exist in Supabase
-    const { getUser } = getKindeServerSession();
-    const user = await getUser();
-
-    if (!user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get or create user in Supabase
-    const userId = await getOrCreateUser(user);
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Failed to create or retrieve user" },
-        { status: 500 }
-      );
-    }
+    // Authenticate user
+    const { userId } = await requireAuth();
 
     // Verify the conversation belongs to the user
-    const { data: conversation, error: convError } = await supabase
-      .from("conversations")
-      .select("id, user_id")
-      .eq("id", conversationId)
-      .single();
+    const conversationsRepo = new ConversationsRepository();
+    await conversationsRepo.findByIdAndVerifyOwner(conversationId, userId);
 
-    if (convError || !conversation) {
-      return NextResponse.json(
-        { error: "Conversation not found" },
-        { status: 404 }
-      );
-    }
-
-    if (conversation.user_id !== userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
-
-    // Fetch messages for the conversation, ordered by creation time
-    const { data: messages, error: messagesError } = await supabase
-      .from("messages")
-      .select("id, role, content, parts, created_at")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
-
-    if (messagesError) {
-      console.error("Error fetching messages:", messagesError);
-      return NextResponse.json(
-        { error: "Failed to fetch messages" },
-        { status: 500 }
-      );
-    }
+    // Fetch messages for the conversation
+    const messagesRepo = new MessagesRepository();
+    const messages = await messagesRepo.findByConversationId(conversationId);
 
     // Transform messages to match the format expected by the chat client
-    const formattedMessages = (messages || []).map((msg) => ({
+    const formattedMessages = messages.map((msg) => ({
       id: msg.id,
       role: msg.role,
       content: msg.content,
       parts: msg.parts || [{ type: "text", text: msg.content }],
     }));
 
-    return NextResponse.json({ messages: formattedMessages });
+    return NextResponse.json<GetMessagesResponse>({
+      messages: formattedMessages,
+    });
   } catch (error) {
-    console.error("Messages API error:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to process request",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

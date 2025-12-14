@@ -4,8 +4,12 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "../../sidebar";
-import { SidebarIcon } from "lucide-react";
-import { RegisterLink, LoginLink } from "@kinde-oss/kinde-auth-nextjs/server";
+import { LogOutIcon, SidebarIcon } from "lucide-react";
+import {
+  RegisterLink,
+  LoginLink,
+  LogoutLink,
+} from "@kinde-oss/kinde-auth-nextjs/server";
 
 // Simple logo component for the navbar
 const Logo = (props: React.SVGAttributes<SVGElement>) => {
@@ -85,7 +89,7 @@ export interface NavbarProps extends React.HTMLAttributes<HTMLElement> {
   logoHref?: string;
   navigationLinks?: NavbarNavLink[];
   isAuthenticated?: boolean;
-  userEmail?: string | null;
+  userGivenName?: string | null;
 }
 
 // Default navigation links
@@ -104,7 +108,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
       logoHref = "#",
       navigationLinks = defaultNavigationLinks,
       isAuthenticated = false,
-      userEmail = null,
+      userGivenName = "",
       ...props
     },
     ref
@@ -173,7 +177,17 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                 </RegisterLink>
               </>
             ) : (
-              <div>user: {userEmail}</div>
+              <>
+                <div>Logged in as {userGivenName}</div>
+                <LogoutLink>
+                  <Button
+                    size="sm"
+                    className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                  >
+                    Logout <LogOutIcon />
+                  </Button>
+                </LogoutLink>
+              </>
             )}
           </div>
         </div>

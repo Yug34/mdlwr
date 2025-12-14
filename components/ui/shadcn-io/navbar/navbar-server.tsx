@@ -9,8 +9,8 @@ export async function NavbarServer(props: NavbarProps) {
   return (
     <Navbar
       {...props}
-      isAuthenticated={authenticated}
-      userEmail={user?.email ?? null}
+      isAuthenticated={authenticated ?? false}
+      userGivenName={user?.given_name ?? null}
     />
   );
 }

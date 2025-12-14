@@ -120,7 +120,7 @@ export function ChatClient() {
         }
       }
     },
-  } as any);
+  } as Parameters<typeof useChat>[0]);
 
   // Wrap sendMessage to intercept and modify the request
   // Since useChat's custom fetch isn't being called, we'll patch fetch globally for this component
@@ -178,7 +178,7 @@ export function ChatClient() {
 
   // Wrap sendMessage to create conversationId before first message if needed
   const sendMessage = useCallback(
-    async (message: any) => {
+    async (message: Parameters<typeof originalSendMessage>[0]) => {
       // If no conversationId exists and this is the first message, create one
       const currentId =
         urlConversationId || conversationIdRef.current || conversationId;
@@ -202,8 +202,10 @@ export function ChatClient() {
         }
       }
 
-      // Call original sendMessage
-      return originalSendMessage(message);
+      // Call original sendMessage - useChat handles the type checking
+      return originalSendMessage(
+        message as Parameters<typeof originalSendMessage>[0]
+      );
     },
     [
       originalSendMessage,
@@ -240,12 +242,19 @@ export function ChatClient() {
             const data = await response.json();
             if (data.messages && data.messages.length > 0) {
               // Transform messages to the format expected by useChat
-              const formattedMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                parts: msg.parts,
-              }));
+              const formattedMessages = data.messages.map(
+                (msg: {
+                  id: string;
+                  role: string;
+                  content: string;
+                  parts: unknown;
+                }) => ({
+                  id: msg.id,
+                  role: msg.role,
+                  content: msg.content,
+                  parts: msg.parts,
+                })
+              );
               setMessages(formattedMessages);
             }
           }

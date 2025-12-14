@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { Conversation, Message, MessagePart } from "@/lib/types";
 
 export interface TestUser {
   id: string;
@@ -8,23 +9,13 @@ export interface TestUser {
   updated_at: string;
 }
 
-export interface TestConversation {
-  id: string;
-  user_id: string;
-  title: string | null;
-  created_at: string;
-  updated_at: string;
-  metadata: any;
+export interface TestConversation extends Omit<Conversation, "metadata"> {
+  metadata: Record<string, unknown> | null;
 }
 
-export interface TestMessage {
-  id: string;
-  conversation_id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  parts: any;
-  created_at: string;
-  metadata: any;
+export interface TestMessage extends Omit<Message, "parts" | "metadata"> {
+  parts: MessagePart[] | null;
+  metadata: Record<string, unknown> | null;
 }
 
 export interface TestProfile {
@@ -114,7 +105,7 @@ export function createTestProfile(
  * Create a mock request for API testing
  */
 export function createMockRequest(
-  body: any,
+  body: unknown,
   headers?: Record<string, string>
 ): Request {
   return new Request("http://localhost:3000/api/test", {

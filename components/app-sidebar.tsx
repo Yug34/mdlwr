@@ -1,4 +1,4 @@
-import { ChevronUp } from "lucide-react";
+import { ChevronUp, LogOutIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,7 +72,7 @@ export async function AppSidebar() {
                   <DropdownMenuItem>
                     <LogoutLink>
                       <Button variant="ghost" size="sm">
-                        Sign out
+                        Logout
                       </Button>
                     </LogoutLink>
                   </DropdownMenuItem>
