@@ -239,6 +239,55 @@ export async function POST(req: Request) {
     await writeDebugLog(logDataChat2);
     // #endregion
 
+    // Store user message immediately if we have userId
+    // This ensures the message is stored even if the stream promise fails
+    if (userId && lastUserMessage) {
+      try {
+        const messageService = new MessageService();
+        // Store just the user message first - title will be set here
+        const userContent = extractMessageContent(lastUserMessage);
+        if (userContent) {
+          await messageService.storeMessages({
+            conversationId: finalConversationId,
+            userMessage: lastUserMessage,
+            assistantContent: "", // Empty for now, will be updated when stream completes
+            userId,
+          });
+          const logUserStored = {
+            location: "chat/route.ts:242",
+            message: "User message stored immediately",
+            data: {
+              conversationId: finalConversationId,
+              userId,
+              userContent,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "K",
+          };
+          console.log("[DEBUG]", JSON.stringify(logUserStored));
+          await writeDebugLog(logUserStored);
+        }
+      } catch (error) {
+        const logUserError = {
+          location: "chat/route.ts:260",
+          message: "ERROR storing user message immediately",
+          data: {
+            conversationId: finalConversationId,
+            userId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+          runId: "run1",
+          hypothesisId: "K",
+        };
+        console.error("[DEBUG ERROR]", JSON.stringify(logUserError));
+        await writeDebugLog(logUserError);
+      }
+    }
+
     // Always attempt to store messages - let MessageService handle userId check
     // This ensures we can debug why messages aren't being stored
     // Add logging to verify the promise is being set up
@@ -344,9 +393,10 @@ export async function POST(req: Request) {
           console.log("[DEBUG]", JSON.stringify(logDataBeforeStore));
           await writeDebugLog(logDataBeforeStore);
           // #endregion
+          // Only store assistant message here since user message was already stored above
           await messageService.storeMessages({
             conversationId: finalConversationId,
-            userMessage: lastUserMessage,
+            userMessage: undefined, // Already stored above
             assistantContent: fullText,
             userId: currentUserId, // Use the re-fetched userId
           });
