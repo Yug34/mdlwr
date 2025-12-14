@@ -269,22 +269,104 @@ export class ConversationsRepository {
    * Check if a conversation has any user messages
    */
   async hasUserMessages(conversationId: string): Promise<boolean> {
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "conversations-repository.ts:271",
+        message: "hasUserMessages called",
+        data: { conversationId },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "I",
+      }),
+    }).catch(() => {});
+    // #endregion
     const supabase = createSupabaseClient();
 
-    const { count, error } = await supabase
+    const { count, error, data } = await supabase
       .from("messages")
       .select("*", { count: "exact", head: true })
       .eq("conversation_id", conversationId)
       .eq("role", "user");
 
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "conversations-repository.ts:280",
+        message: "hasUserMessages query result",
+        data: {
+          conversationId,
+          count,
+          countValue: count ?? 0,
+          hasError: !!error,
+          errorMessage: error?.message,
+          errorCode: error?.code,
+          hasUserMessages: (count ?? 0) > 0,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "I",
+      }),
+    }).catch(() => {});
+    // #endregion
+
     if (error) {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "conversations-repository.ts:300",
+            message: "hasUserMessages ERROR",
+            data: {
+              conversationId,
+              errorMessage: error.message,
+              errorCode: error.code,
+              errorDetails: error.details,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "I",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
       throw new DatabaseError(
         `Failed to check messages: ${error.message}`,
         error
       );
     }
 
-    return (count ?? 0) > 0;
+    const result = (count ?? 0) > 0;
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "conversations-repository.ts:320",
+        message: "hasUserMessages returning",
+        data: {
+          conversationId,
+          result,
+          count,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "I",
+      }),
+    }).catch(() => {});
+    // #endregion
+    return result;
   }
 
   /**
