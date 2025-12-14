@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "../../sidebar";
-import { LogOutIcon, SidebarIcon } from "lucide-react";
+import { LogInIcon, LogOutIcon, SidebarIcon, UserIcon } from "lucide-react";
 import {
   RegisterLink,
   LoginLink,
@@ -160,11 +160,11 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
               <>
                 <LoginLink>
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
                   >
-                    Sign In
+                    Sign In <LogInIcon />
                   </Button>
                 </LoginLink>
                 <RegisterLink>
@@ -172,7 +172,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                     size="sm"
                     className="text-sm font-medium px-4 h-9 rounded-md shadow-sm"
                   >
-                    Sign Up
+                    Sign Up <UserIcon />
                   </Button>
                 </RegisterLink>
               </>

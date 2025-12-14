@@ -1,4 +1,9 @@
-import { ExternalLinkIcon, GithubIcon } from "lucide-react";
+import {
+  ExternalLinkIcon,
+  GithubIcon,
+  LogInIcon,
+  UserIcon,
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -11,7 +16,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import {
+  getKindeServerSession,
+  LoginLink,
+  RegisterLink,
+} from "@kinde-oss/kinde-auth-nextjs/server";
 import { Button } from "./ui/button";
 import { SidebarMenuItems } from "./sidebar-menu-items";
 import { ConversationList } from "./conversation-list";
@@ -31,12 +40,32 @@ export async function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {(await isAuthenticated()) && (
+        {(await isAuthenticated()) ? (
           <SidebarGroup>
             <SidebarGroupLabel>Your chats</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <ConversationList />
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : (
+          <SidebarGroup>
+            <SidebarGroupLabel>Login for chat history</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <span className="flex items-center gap-2">
+                  <LoginLink>
+                    <Button>
+                      Login <LogInIcon />
+                    </Button>
+                  </LoginLink>
+                  <RegisterLink>
+                    <Button>
+                      Register <UserIcon />
+                    </Button>
+                  </RegisterLink>
+                </span>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
