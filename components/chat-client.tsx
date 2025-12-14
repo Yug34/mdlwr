@@ -117,7 +117,27 @@ export function ChatClient() {
         if (newConversationId !== conversationId) {
           setConversationId(newConversationId);
           router.replace(`/?conversationId=${newConversationId}`);
+          // Dispatch event to notify ConversationList to refresh
+          window.dispatchEvent(
+            new CustomEvent("conversationCreated", {
+              detail: { conversationId: newConversationId },
+            })
+          );
         }
+      }
+    },
+    onFinish: () => {
+      // After streaming completes, dispatch event to refresh sidebar
+      // The conversation list will retry fetching to catch the title update
+      // since title is set asynchronously after messages are stored
+      const currentConversationId = conversationIdRef.current;
+      if (currentConversationId) {
+        // Dispatch immediately - the conversation list will handle retries
+        window.dispatchEvent(
+          new CustomEvent("conversationUpdated", {
+            detail: { conversationId: currentConversationId },
+          })
+        );
       }
     },
   } as Parameters<typeof useChat>[0]);
@@ -195,6 +215,12 @@ export function ChatClient() {
             conversationIdRef.current = newConversationId;
             setConversationId(newConversationId);
             router.replace(`/?conversationId=${newConversationId}`);
+            // Dispatch event to notify ConversationList to refresh
+            window.dispatchEvent(
+              new CustomEvent("conversationCreated", {
+                detail: { conversationId: newConversationId },
+              })
+            );
           }
         } catch (error) {
           console.error("Error creating conversation:", error);

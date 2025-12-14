@@ -9,3 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 export function getRandomSuggestions() {
   return SUGGESTIONS.sort(() => Math.random() - 0.5).slice(0, 3);
 }
+
+export function capitalizeFirstLetter(val: string) {
+  return val.charAt(0).toUpperCase() + val.slice(1);
+}
