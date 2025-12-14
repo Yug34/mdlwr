@@ -236,8 +236,18 @@ export function ChatClient() {
                 location: "chat-client.tsx:205",
                 message: "Creating conversation before first message",
                 data: {
-                  messageText: message?.text,
-                  messageContent: message?.content,
+                  messageText:
+                    typeof message === "object" &&
+                    message !== null &&
+                    "text" in message
+                      ? message.text
+                      : undefined,
+                  messageContent:
+                    typeof message === "object" &&
+                    message !== null &&
+                    "content" in message
+                      ? message.content
+                      : undefined,
                 },
                 timestamp: Date.now(),
                 sessionId: "debug-session",
