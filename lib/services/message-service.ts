@@ -127,26 +127,47 @@ export class MessageService {
       if (userContent) {
         // Check if we need to set conversation title
         // IMPORTANT: Do this BEFORE storing the message to avoid race conditions
-        await this.setConversationTitleIfNeeded(conversationId, userContent);
+        try {
+          await this.setConversationTitleIfNeeded(conversationId, userContent);
+        } catch (error) {
+          // Log error but continue - we'll try to set title again after storing message
+          const logError = {
+            location: "message-service.ts:130",
+            message: "ERROR in setConversationTitleIfNeeded",
+            data: {
+              conversationId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "J",
+          };
+          console.error("[DEBUG ERROR]", JSON.stringify(logError));
+          await writeDebugLog(logError);
+        }
 
         // #region agent log
+        const logDataBeforeStore = {
+          location: "message-service.ts:147",
+          message: "About to store user message",
+          data: {
+            conversationId,
+            userContent,
+          },
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+          runId: "run1",
+          hypothesisId: "I",
+        };
+        console.log("[DEBUG]", JSON.stringify(logDataBeforeStore));
+        await writeDebugLog(logDataBeforeStore);
         fetch(
           "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              location: "message-service.ts:70",
-              message: "About to store user message",
-              data: {
-                conversationId,
-                userContent,
-              },
-              timestamp: Date.now(),
-              sessionId: "debug-session",
-              runId: "run1",
-              hypothesisId: "I",
-            }),
+            body: JSON.stringify(logDataBeforeStore),
           }
         ).catch(() => {});
         // #endregion
@@ -157,23 +178,72 @@ export class MessageService {
           userContent,
           (userMessage.parts || null) as MessagePart[] | null
         );
+
+        // After storing the message, verify and ensure title is set
+        // This is a fallback in case the previous title setting failed
+        const currentTitle = await this.conversationsRepo.getTitle(
+          conversationId
+        );
+        if (!currentTitle || currentTitle.trim() === "") {
+          // Title is still null/empty, try setting it again
+          const title =
+            userContent.length > MAX_CONVERSATION_TITLE_LENGTH
+              ? userContent.substring(0, MAX_CONVERSATION_TITLE_LENGTH).trim() +
+                "..."
+              : userContent.trim();
+          try {
+            await this.conversationsRepo.updateTitle(conversationId, title);
+            const logRetry = {
+              location: "message-service.ts:175",
+              message: "Title set on retry after message storage",
+              data: { conversationId, title },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              runId: "run1",
+              hypothesisId: "J",
+            };
+            console.log("[DEBUG]", JSON.stringify(logRetry));
+            await writeDebugLog(logRetry);
+          } catch (error) {
+            const logRetryError = {
+              location: "message-service.ts:185",
+              message: "ERROR setting title on retry",
+              data: {
+                conversationId,
+                title,
+                error: error instanceof Error ? error.message : String(error),
+              },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              runId: "run1",
+              hypothesisId: "J",
+            };
+            console.error("[DEBUG ERROR]", JSON.stringify(logRetryError));
+            await writeDebugLog(logRetryError);
+          }
+        }
+
         // #region agent log
+        const logDataAfterStore = {
+          location: "message-service.ts:198",
+          message: "User message stored successfully",
+          data: {
+            conversationId,
+            finalTitle: await this.conversationsRepo.getTitle(conversationId),
+          },
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+          runId: "run1",
+          hypothesisId: "I",
+        };
+        console.log("[DEBUG]", JSON.stringify(logDataAfterStore));
+        await writeDebugLog(logDataAfterStore);
         fetch(
           "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              location: "message-service.ts:85",
-              message: "User message stored successfully",
-              data: {
-                conversationId,
-              },
-              timestamp: Date.now(),
-              sessionId: "debug-session",
-              runId: "run1",
-              hypothesisId: "I",
-            }),
+            body: JSON.stringify(logDataAfterStore),
           }
         ).catch(() => {});
         // #endregion
