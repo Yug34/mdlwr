@@ -18,14 +18,48 @@ export class ConversationsRepository {
     userId: string,
     title: string | null = null
   ): Promise<Conversation> {
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "conversations-repository.ts:17",
+        message: "ConversationsRepository.create called",
+        data: {
+          title,
+          titleType: typeof title,
+          isNull: title === null,
+          isUndefined: title === undefined,
+          titleLength: title?.length,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "A",
+      }),
+    }).catch(() => {});
+    // #endregion
     const supabase = createSupabaseClient();
 
+    const insertData = { title, user_id: userId };
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "conversations-repository.ts:25",
+        message: "Data being inserted to database",
+        data: { insertData, titleInInsert: insertData.title },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "A",
+      }),
+    }).catch(() => {});
+    // #endregion
     const { data: conversation, error } = await supabase
       .from("conversations")
-      .insert({
-        title,
-        user_id: userId,
-      })
+      .insert(insertData)
       .select()
       .single();
 

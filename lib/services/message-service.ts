@@ -62,8 +62,46 @@ export class MessageService {
     conversationId: string,
     userContent: string
   ): Promise<void> {
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "message-service.ts:61",
+        message: "setConversationTitleIfNeeded called",
+        data: {
+          conversationId,
+          userContent,
+          userContentLength: userContent?.length,
+          isEmpty: !userContent || userContent.trim() === "",
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "C",
+      }),
+    }).catch(() => {});
+    // #endregion
     // Check if conversation already has a title
     const existingTitle = await this.conversationsRepo.getTitle(conversationId);
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "message-service.ts:66",
+        message: "Existing title check",
+        data: {
+          existingTitle,
+          hasTitle: !!(existingTitle && existingTitle.trim() !== ""),
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "B",
+      }),
+    }).catch(() => {});
+    // #endregion
     if (existingTitle && existingTitle.trim() !== "") {
       return; // Already has a title
     }
@@ -72,6 +110,21 @@ export class MessageService {
     const hasUserMessages = await this.conversationsRepo.hasUserMessages(
       conversationId
     );
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "message-service.ts:72",
+        message: "hasUserMessages check",
+        data: { hasUserMessages, conversationId },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "D",
+      }),
+    }).catch(() => {});
+    // #endregion
     if (hasUserMessages) {
       return; // Not the first message
     }
@@ -81,7 +134,40 @@ export class MessageService {
       userContent.length > MAX_CONVERSATION_TITLE_LENGTH
         ? userContent.substring(0, MAX_CONVERSATION_TITLE_LENGTH).trim() + "..."
         : userContent.trim();
-
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "message-service.ts:79",
+        message: "Title to be set",
+        data: {
+          title,
+          titleLength: title?.length,
+          isEmpty: !title || title.trim() === "",
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "C",
+      }),
+    }).catch(() => {});
+    // #endregion
     await this.conversationsRepo.updateTitle(conversationId, title);
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "message-service.ts:85",
+        message: "Title update completed",
+        data: { conversationId, title },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "B",
+      }),
+    }).catch(() => {});
+    // #endregion
   }
 }

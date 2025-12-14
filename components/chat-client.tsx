@@ -174,6 +174,28 @@ export function ChatClient() {
             }
 
             const bodyObj = JSON.parse(bodyStr);
+            // #region agent log
+            fetch(
+              "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  location: "chat-client.tsx:176",
+                  message: "Patched fetch - body before modification",
+                  data: {
+                    bodyObj,
+                    hasTitle: !!bodyObj.title,
+                    titleValue: bodyObj.title,
+                  },
+                  timestamp: Date.now(),
+                  sessionId: "debug-session",
+                  runId: "run1",
+                  hypothesisId: "E",
+                }),
+              }
+            ).catch(() => {});
+            // #endregion
             bodyObj.conversationId = currentId || undefined;
             init.body = JSON.stringify(bodyObj);
           } catch (error) {
@@ -204,6 +226,27 @@ export function ChatClient() {
         urlConversationId || conversationIdRef.current || conversationId;
       if (!currentId && messages.length === 0) {
         try {
+          // #region agent log
+          fetch(
+            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                location: "chat-client.tsx:205",
+                message: "Creating conversation before first message",
+                data: {
+                  messageText: message?.text,
+                  messageContent: message?.content,
+                },
+                timestamp: Date.now(),
+                sessionId: "debug-session",
+                runId: "run1",
+                hypothesisId: "A",
+              }),
+            }
+          ).catch(() => {});
+          // #endregion
           const response = await fetch("/api/conversations", {
             method: "POST",
           });

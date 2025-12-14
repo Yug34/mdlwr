@@ -125,7 +125,46 @@ export class ConversationService {
    */
   private async createConversation(userId: string): Promise<string> {
     try {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "conversation-service.ts:126",
+            message: "createConversation called - always passing null title",
+            data: { userId },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "B",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
       const conversation = await this.conversationsRepo.create(userId, null);
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "conversation-service.ts:129",
+            message: "Conversation created with title",
+            data: {
+              conversationId: conversation.id,
+              title: conversation.title,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "B",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
       return conversation.id;
     } catch (error) {
       throw new DatabaseError("Failed to create conversation", error);

@@ -28,6 +28,28 @@ export async function POST(req: Request) {
   try {
     // Validate request
     const body = await req.json();
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "chat/route.ts:27",
+        message: "POST /api/chat - request body received",
+        data: {
+          hasTitle: !!body.title,
+          titleValue: body.title,
+          titleType: typeof body.title,
+          hasMessages: !!body.messages,
+          messagesLength: body.messages?.length,
+          hasConversationId: !!body.conversationId,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "E",
+      }),
+    }).catch(() => {});
+    // #endregion
     let validatedRequest: ChatRequest;
     try {
       validatedRequest = validateChatRequest(body);
@@ -36,6 +58,25 @@ export async function POST(req: Request) {
     }
 
     const { messages, conversationId } = validatedRequest;
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "chat/route.ts:38",
+        message: "After validation - extracted values",
+        data: {
+          conversationId,
+          messagesLength: messages?.length,
+          firstUserMessage: messages?.find((m) => m.role === "user"),
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "E",
+      }),
+    }).catch(() => {});
+    // #endregion
 
     // Authenticate user
     const { userId } = await requireAuth();
