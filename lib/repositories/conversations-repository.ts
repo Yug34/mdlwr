@@ -9,16 +9,18 @@ import {
   NotFoundError,
   AuthorizationError,
 } from "@/lib/errors/app-errors";
-import { appendFile } from "fs/promises";
-import { join } from "path";
+import { appendFile, mkdir } from "fs/promises";
+import { join, dirname } from "path";
 
 // Helper to write debug logs to file
 async function writeDebugLog(data: any) {
   try {
     const logPath = join(process.cwd(), ".cursor", "debug.log");
+    const logDir = dirname(logPath);
+    await mkdir(logDir, { recursive: true });
     await appendFile(logPath, JSON.stringify(data) + "\n");
   } catch (e) {
-    // Silently fail if file write doesn't work
+    console.error("[DEBUG LOG ERROR]", e);
   }
 }
 
