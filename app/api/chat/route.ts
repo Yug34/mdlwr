@@ -3,6 +3,12 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createSupabaseClient } from "@/lib/supabase";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { getOrCreateUser } from "@/lib/supabase/users";
+import { getUserProfile, saveUserProfile } from "@/lib/supabase/profiles";
+import {
+  isSelfReferenceQuery,
+  fetchRecentConversations,
+  generatePersonalityProfile,
+} from "@/lib/services/profile-generator";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -173,8 +179,85 @@ export async function POST(req: Request) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
+    // Extract last user message for self-reference detection
+    const lastUserMessage = messages[messages.length - 1];
+    const extractContent = (message: any): string => {
+      if (typeof message.content === "string") {
+        return message.content;
+      }
+      if (message.parts && Array.isArray(message.parts)) {
+        return message.parts
+          .map((part: any) => {
+            if (part.type === "text" && part.text) {
+              return part.text;
+            }
+            return "";
+          })
+          .join("");
+      }
+      return "";
+    };
+
+    const userMessageContent =
+      lastUserMessage && lastUserMessage.role === "user"
+        ? extractContent(lastUserMessage)
+        : "";
+
+    // Check if this is a self-reference query
+    let profileText: string | null = null;
+    if (userMessageContent && userId) {
+      const isSelfRef = await isSelfReferenceQuery(userMessageContent, openai);
+
+      if (isSelfRef) {
+        console.log(
+          "Self-reference query detected, fetching/generating profile"
+        );
+
+        // Try to get existing profile
+        const existingProfile = await getUserProfile(userId);
+
+        if (existingProfile?.profile_data?.profile_text) {
+          // Use existing profile
+          profileText = existingProfile.profile_data.profile_text;
+          console.log("Using existing profile");
+        } else {
+          // Generate new profile
+          console.log("Generating new profile from conversation history");
+          try {
+            const recentMessages = await fetchRecentConversations(userId);
+
+            // Require at least 2 messages to generate a meaningful profile
+            if (recentMessages.length >= 2) {
+              profileText = await generatePersonalityProfile(
+                recentMessages,
+                openai
+              );
+
+              // Save profile to database
+              await saveUserProfile(userId, {
+                profile_text: profileText,
+              });
+              console.log("Profile generated and saved");
+            } else {
+              profileText =
+                "I don't have enough conversation history yet to create a personality profile. Keep chatting and I'll learn more about you!";
+            }
+          } catch (error) {
+            console.error("Error generating profile:", error);
+            profileText = null; // Fall back to normal response
+          }
+        }
+      }
+    }
+
+    // Prepare system message with profile if available
+    const systemMessage = profileText
+      ? `You are a helpful assistant. Here's what you know about the user based on past conversations:\n\n${profileText}\n\nUse this information to provide a personalized response when the user asks about themselves.`
+      : undefined;
+
     const result = streamText({
       model: openai("gpt-4.1"),
+      ...(systemMessage && { system: systemMessage }),
       messages: convertToModelMessages(messages),
     });
 

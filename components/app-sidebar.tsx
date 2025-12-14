@@ -42,7 +42,7 @@ export async function AppSidebar() {
         </SidebarGroup>
         {(await isAuthenticated()) && (
           <SidebarGroup>
-            <SidebarGroupLabel>Conversations</SidebarGroupLabel>
+            <SidebarGroupLabel>Your chats</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <ConversationList />

@@ -19,6 +19,7 @@ import {
   PromptInputTextarea,
   PromptInputSubmit,
 } from "@/components/ai-elements/prompt-input";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import { getRandomSuggestions } from "@/lib/utils";
 
@@ -265,6 +266,24 @@ export function ChatClient() {
 
   const isLoading = status === "streaming" || status === "submitted";
 
+  // Check if we should show thinking indicator
+  // Show when status is "submitted" (request sent but stream hasn't started)
+  // This happens when the last message is an assistant message with no content yet
+  // OR when the last message is a user message (assistant message not added yet)
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageIsAssistantEmpty =
+    lastMessage?.role === "assistant" &&
+    (!lastMessage.parts ||
+      lastMessage.parts.length === 0 ||
+      !lastMessage.parts.some(
+        (part) =>
+          part.type === "text" && part.text && part.text.trim().length > 0
+      ));
+  const shouldShowThinkingAsSeparate =
+    status === "submitted" && lastMessage?.role === "user";
+  const shouldShowThinkingInMessage =
+    status === "submitted" && lastMessageIsAssistantEmpty;
+
   const handleSuggestionClick = (suggestion: string) => {
     console.log("🟢 handleSuggestionClick called with:", suggestion);
     sendMessage({ text: suggestion });
@@ -274,30 +293,51 @@ export function ChatClient() {
     <>
       <Conversation>
         <ConversationContent>
-          {messages.length === 0 ? (
+          {messages.length === 0 && !shouldShowThinkingAsSeparate ? (
             <ConversationEmptyState
               title="Start a conversation"
               description="Type a message below to begin"
             />
           ) : (
-            messages.map((message) => (
-              <Message key={message.id} from={message.role}>
-                <MessageContent>
-                  {message.role === "assistant" ? (
-                    <MessageResponse>
-                      {message.parts
-                        ?.filter((part) => part.type === "text")
-                        .map((part) => part.text)
-                        .join("")}
-                    </MessageResponse>
-                  ) : (
-                    message.parts?.map(
-                      (part) => part.type === "text" && part.text
-                    )
-                  )}
-                </MessageContent>
-              </Message>
-            ))
+            <>
+              {messages.map((message, index) => {
+                const isLastMessage = index === messages.length - 1;
+                const shouldShowThinkingForThisMessage =
+                  isLastMessage &&
+                  message.role === "assistant" &&
+                  shouldShowThinkingInMessage;
+
+                return (
+                  <Message key={message.id} from={message.role}>
+                    <MessageContent>
+                      {message.role === "assistant" ? (
+                        shouldShowThinkingForThisMessage ? (
+                          <Shimmer>Thinking...</Shimmer>
+                        ) : (
+                          <MessageResponse>
+                            {message.parts
+                              ?.filter((part) => part.type === "text")
+                              .map((part) => part.text)
+                              .join("")}
+                          </MessageResponse>
+                        )
+                      ) : (
+                        message.parts?.map(
+                          (part) => part.type === "text" && part.text
+                        )
+                      )}
+                    </MessageContent>
+                  </Message>
+                );
+              })}
+              {shouldShowThinkingAsSeparate && (
+                <Message from="assistant">
+                  <MessageContent>
+                    <Shimmer>Thinking...</Shimmer>
+                  </MessageContent>
+                </Message>
+              )}
+            </>
           )}
         </ConversationContent>
       </Conversation>

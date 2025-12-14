@@ -17,11 +17,6 @@ export function SidebarMenuItems() {
         router.push("/");
       },
     },
-    {
-      title: "Inbox",
-      url: "#",
-      icon: Inbox,
-    },
   ];
 
   return (
