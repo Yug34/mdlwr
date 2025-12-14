@@ -93,21 +93,46 @@ export async function POST(req: Request) {
     // #endregion
 
     // Get authenticated user (optional)
-    const authenticatedUser = await getAuthenticatedUser();
-    const userId = authenticatedUser?.userId ?? null;
+    let authenticatedUser;
+    let userId: string | null = null;
+    try {
+      authenticatedUser = await getAuthenticatedUser();
+      userId = authenticatedUser?.userId ?? null;
+    } catch (error) {
+      const authErrorLog = {
+        location: "chat/route.ts:83",
+        message: "ERROR getting authenticated user",
+        data: {
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "K",
+      };
+      console.error("[DEBUG ERROR]", JSON.stringify(authErrorLog));
+      await writeDebugLog(authErrorLog);
+    }
     // #region agent log
     const logDataChat1 = {
-      location: "chat/route.ts:83",
+      location: "chat/route.ts:97",
       message: "User authentication check",
       data: {
         hasAuthenticatedUser: !!authenticatedUser,
+        authenticatedUserData: authenticatedUser ? {
+          userId: authenticatedUser.userId,
+          kindeId: authenticatedUser.kindeId,
+          email: authenticatedUser.email,
+        } : null,
         userId,
         isNull: userId === null,
+        userIdType: typeof userId,
       },
       timestamp: Date.now(),
       sessionId: "debug-session",
       runId: "run1",
-      hypothesisId: "I",
+      hypothesisId: "K",
     };
     console.log("[DEBUG]", JSON.stringify(logDataChat1));
     await writeDebugLog(logDataChat1);
@@ -191,25 +216,29 @@ export async function POST(req: Request) {
     const lastUserMessage = getLastUserMessage(messages);
     // #region agent log
     const logDataChat2 = {
-      location: "chat/route.ts:161",
+      location: "chat/route.ts:215",
       message: "About to store messages - check",
       data: {
         userId,
         hasUserId: !!userId,
+        userIdValue: userId,
         finalConversationId,
         hasLastUserMessage: !!lastUserMessage,
+        willStoreMessages: !!userId,
       },
       timestamp: Date.now(),
       sessionId: "debug-session",
       runId: "run1",
-      hypothesisId: "I",
+      hypothesisId: "K",
     };
     console.log("[DEBUG]", JSON.stringify(logDataChat2));
     await writeDebugLog(logDataChat2);
     // #endregion
-    if (userId) {
-      result.text
-        .then(async (fullText) => {
+    
+    // Always attempt to store messages - let MessageService handle userId check
+    // This ensures we can debug why messages aren't being stored
+    result.text
+      .then(async (fullText) => {
           try {
             // #region agent log
             const logDataChat3 = {
@@ -238,12 +267,47 @@ export async function POST(req: Request) {
             ).catch(() => {});
             // #endregion
             const messageService = new MessageService();
+            // #region agent log
+            const logDataBeforeStore = {
+              location: "chat/route.ts:260",
+              message: "Calling storeMessages",
+              data: {
+                conversationId: finalConversationId,
+                userId,
+                userIdType: typeof userId,
+                hasUserMessage: !!lastUserMessage,
+                assistantContentLength: fullText?.length,
+              },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              runId: "run1",
+              hypothesisId: "K",
+            };
+            console.log("[DEBUG]", JSON.stringify(logDataBeforeStore));
+            await writeDebugLog(logDataBeforeStore);
+            // #endregion
             await messageService.storeMessages({
               conversationId: finalConversationId,
               userMessage: lastUserMessage,
               assistantContent: fullText,
               userId,
             });
+            // #region agent log
+            const logDataAfterStore = {
+              location: "chat/route.ts:278",
+              message: "storeMessages completed",
+              data: {
+                conversationId: finalConversationId,
+                userId,
+              },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              runId: "run1",
+              hypothesisId: "K",
+            };
+            console.log("[DEBUG]", JSON.stringify(logDataAfterStore));
+            await writeDebugLog(logDataAfterStore);
+            // #endregion
             // #region agent log
             fetch(
               "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
@@ -267,28 +331,31 @@ export async function POST(req: Request) {
             // #endregion
           } catch (error) {
             // #region agent log
+            const logDataError = {
+              location: "chat/route.ts:295",
+              message: "ERROR storing messages",
+              data: {
+                conversationId: finalConversationId,
+                userId,
+                errorMessage:
+                  error instanceof Error ? error.message : String(error),
+                errorStack:
+                  error instanceof Error ? error.stack : undefined,
+                errorName: error instanceof Error ? error.name : undefined,
+              },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              runId: "run1",
+              hypothesisId: "K",
+            };
+            console.error("[DEBUG ERROR]", JSON.stringify(logDataError));
+            await writeDebugLog(logDataError);
             fetch(
               "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  location: "chat/route.ts:190",
-                  message: "ERROR storing messages",
-                  data: {
-                    conversationId: finalConversationId,
-                    userId,
-                    errorMessage:
-                      error instanceof Error ? error.message : String(error),
-                    errorStack:
-                      error instanceof Error ? error.stack : undefined,
-                    errorName: error instanceof Error ? error.name : undefined,
-                  },
-                  timestamp: Date.now(),
-                  sessionId: "debug-session",
-                  runId: "run1",
-                  hypothesisId: "F",
-                }),
+                body: JSON.stringify(logDataError),
               }
             ).catch(() => {});
             // #endregion
@@ -296,6 +363,33 @@ export async function POST(req: Request) {
           }
         })
         .catch((error) => {
+          // #region agent log
+          const logDataStreamError = {
+            location: "chat/route.ts:320",
+            message: "ERROR getting stream text",
+            data: {
+              conversationId: finalConversationId,
+              userId,
+              errorMessage:
+                error instanceof Error ? error.message : String(error),
+              errorStack: error instanceof Error ? error.stack : undefined,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "K",
+          };
+          console.error("[DEBUG ERROR]", JSON.stringify(logDataStreamError));
+          await writeDebugLog(logDataStreamError);
+          fetch(
+            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(logDataStreamError),
+            }
+          ).catch(() => {});
+          // #endregion
           // #region agent log
           fetch(
             "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
