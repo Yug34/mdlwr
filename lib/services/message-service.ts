@@ -99,30 +99,34 @@ export class MessageService {
     if (userMessage && userMessage.role === "user") {
       const userContent = extractMessageContent(userMessage);
       // #region agent log
+      const logDataBeforeTitle = {
+        location: "message-service.ts:98",
+        message: "About to set title and store user message",
+        data: {
+          conversationId,
+          userContent,
+          userContentLength: userContent?.length,
+          hasContent: !!userContent,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "I",
+      };
+      console.log("[DEBUG]", JSON.stringify(logDataBeforeTitle));
+      await writeDebugLog(logDataBeforeTitle);
       fetch(
         "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "message-service.ts:52",
-            message: "About to set title and store user message",
-            data: {
-              conversationId,
-              userContent,
-              userContentLength: userContent?.length,
-              hasContent: !!userContent,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "I",
-          }),
+          body: JSON.stringify(logDataBeforeTitle),
         }
       ).catch(() => {});
       // #endregion
       if (userContent) {
         // Check if we need to set conversation title
+        // IMPORTANT: Do this BEFORE storing the message to avoid race conditions
         await this.setConversationTitleIfNeeded(conversationId, userContent);
 
         // #region agent log
@@ -245,12 +249,15 @@ export class MessageService {
     }
 
     // Check if this is the first user message
+    // IMPORTANT: We check this BEFORE storing the current message to ensure
+    // we catch the first message correctly. However, if the check happens
+    // after a previous call already stored a message, we need to handle that.
     const hasUserMessages = await this.conversationsRepo.hasUserMessages(
       conversationId
     );
     // #region agent log
     const logData3 = {
-      location: "message-service.ts:72",
+      location: "message-service.ts:247",
       message: "hasUserMessages check",
       data: { hasUserMessages, conversationId },
       timestamp: Date.now(),
@@ -266,9 +273,16 @@ export class MessageService {
       body: JSON.stringify(logData3),
     }).catch(() => {});
     // #endregion
-    if (hasUserMessages) {
-      return; // Not the first message
+
+    // If there are already user messages, don't set the title
+    // UNLESS the title is still null (edge case: title setting failed previously)
+    if (hasUserMessages && existingTitle !== null) {
+      return; // Not the first message and title already exists (even if empty string)
     }
+
+    // If we get here, either:
+    // 1. No user messages exist yet (first message) - set title
+    // 2. User messages exist but title is still null (retry setting title)
 
     // Set title to first user message (truncate if needed)
     const title =

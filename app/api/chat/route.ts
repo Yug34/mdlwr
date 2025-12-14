@@ -20,6 +20,20 @@ import { DEFAULT_CHAT_MODEL } from "@/lib/constants/ai-config";
 import { MIN_MESSAGES_FOR_PROFILE } from "@/lib/constants/conversation-config";
 import { ChatRequest, InputMessage } from "@/lib/types";
 import { ValidationError } from "@/lib/errors/app-errors";
+import { appendFile, mkdir } from "fs/promises";
+import { join, dirname } from "path";
+
+// Helper to write debug logs to file
+async function writeDebugLog(data: any) {
+  try {
+    const logPath = join(process.cwd(), ".cursor", "debug.log");
+    const logDir = dirname(logPath);
+    await mkdir(logDir, { recursive: true });
+    await appendFile(logPath, JSON.stringify(data) + "\n");
+  } catch (e) {
+    console.error("[DEBUG LOG ERROR]", e);
+  }
+}
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -81,6 +95,23 @@ export async function POST(req: Request) {
     // Get authenticated user (optional)
     const authenticatedUser = await getAuthenticatedUser();
     const userId = authenticatedUser?.userId ?? null;
+    // #region agent log
+    const logDataChat1 = {
+      location: "chat/route.ts:83",
+      message: "User authentication check",
+      data: {
+        hasAuthenticatedUser: !!authenticatedUser,
+        userId,
+        isNull: userId === null,
+      },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      runId: "run1",
+      hypothesisId: "I",
+    };
+    console.log("[DEBUG]", JSON.stringify(logDataChat1));
+    await writeDebugLog(logDataChat1);
+    // #endregion
 
     // Resolve or create conversation
     const conversationService = new ConversationService();
@@ -158,30 +189,51 @@ export async function POST(req: Request) {
 
     // Store messages after streaming completes (only for authenticated users)
     const lastUserMessage = getLastUserMessage(messages);
+    // #region agent log
+    const logDataChat2 = {
+      location: "chat/route.ts:161",
+      message: "About to store messages - check",
+      data: {
+        userId,
+        hasUserId: !!userId,
+        finalConversationId,
+        hasLastUserMessage: !!lastUserMessage,
+      },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      runId: "run1",
+      hypothesisId: "I",
+    };
+    console.log("[DEBUG]", JSON.stringify(logDataChat2));
+    await writeDebugLog(logDataChat2);
+    // #endregion
     if (userId) {
       result.text
         .then(async (fullText) => {
           try {
             // #region agent log
+            const logDataChat3 = {
+              location: "chat/route.ts:180",
+              message: "About to store messages",
+              data: {
+                conversationId: finalConversationId,
+                userId,
+                hasUserMessage: !!lastUserMessage,
+                assistantContentLength: fullText?.length,
+              },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              runId: "run1",
+              hypothesisId: "F",
+            };
+            console.log("[DEBUG]", JSON.stringify(logDataChat3));
+            await writeDebugLog(logDataChat3);
             fetch(
               "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  location: "chat/route.ts:163",
-                  message: "About to store messages",
-                  data: {
-                    conversationId: finalConversationId,
-                    userId,
-                    hasUserMessage: !!lastUserMessage,
-                    assistantContentLength: fullText?.length,
-                  },
-                  timestamp: Date.now(),
-                  sessionId: "debug-session",
-                  runId: "run1",
-                  hypothesisId: "F",
-                }),
+                body: JSON.stringify(logDataChat3),
               }
             ).catch(() => {});
             // #endregion
