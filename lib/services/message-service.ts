@@ -30,46 +30,49 @@ export class MessageService {
     const { conversationId, userMessage, assistantContent, userId } = params;
 
     // #region agent log
+    const logData1 = {
+      location: "message-service.ts:29",
+      message: "storeMessages called",
+      data: {
+        conversationId,
+        userId,
+        hasUserMessage: !!userMessage,
+        userMessageRole: userMessage?.role,
+        hasAssistantContent: !!assistantContent,
+        assistantContentLength: assistantContent?.length,
+      },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      runId: "run1",
+      hypothesisId: "I",
+    };
+    console.log("[DEBUG]", JSON.stringify(logData1));
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "message-service.ts:29",
-        message: "storeMessages called",
-        data: {
-          conversationId,
-          userId,
-          hasUserMessage: !!userMessage,
-          userMessageRole: userMessage?.role,
-          hasAssistantContent: !!assistantContent,
-          assistantContentLength: assistantContent?.length,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "I",
-      }),
+      body: JSON.stringify(logData1),
     }).catch(() => {});
     // #endregion
 
     // Skip database operations for unauthenticated users (session-only conversations)
     if (userId === null) {
       // #region agent log
+      const logData2 = {
+        location: "message-service.ts:35",
+        message: "Skipping storeMessages - userId is null (unauthenticated)",
+        data: { conversationId },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "I",
+      };
+      console.log("[DEBUG]", JSON.stringify(logData2));
       fetch(
         "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "message-service.ts:35",
-            message:
-              "Skipping storeMessages - userId is null (unauthenticated)",
-            data: { conversationId },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "I",
-          }),
+          body: JSON.stringify(logData2),
         }
       ).catch(() => {});
       // #endregion
@@ -224,18 +227,20 @@ export class MessageService {
       conversationId
     );
     // #region agent log
+    const logData3 = {
+      location: "message-service.ts:72",
+      message: "hasUserMessages check",
+      data: { hasUserMessages, conversationId },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      runId: "run1",
+      hypothesisId: "D",
+    };
+    console.log("[DEBUG]", JSON.stringify(logData3));
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "message-service.ts:72",
-        message: "hasUserMessages check",
-        data: { hasUserMessages, conversationId },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "D",
-      }),
+      body: JSON.stringify(logData3),
     }).catch(() => {});
     // #endregion
     if (hasUserMessages) {

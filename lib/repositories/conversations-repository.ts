@@ -183,26 +183,28 @@ export class ConversationsRepository {
       .select();
 
     // #region agent log
+    const logData5 = {
+      location: "conversations-repository.ts:162",
+      message: "updateTitle database response",
+      data: {
+        conversationId,
+        hasError: !!error,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorDetails: error?.details,
+        updatedRows: data?.length,
+        updatedTitle: data?.[0]?.title,
+      },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      runId: "run1",
+      hypothesisId: "F",
+    };
+    console.log("[DEBUG]", JSON.stringify(logData5));
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "conversations-repository.ts:162",
-        message: "updateTitle database response",
-        data: {
-          conversationId,
-          hasError: !!error,
-          errorMessage: error?.message,
-          errorCode: error?.code,
-          errorDetails: error?.details,
-          updatedRows: data?.length,
-          updatedTitle: data?.[0]?.title,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "F",
-      }),
+      body: JSON.stringify(logData5),
     }).catch(() => {});
     // #endregion
 
@@ -293,26 +295,28 @@ export class ConversationsRepository {
       .eq("role", "user");
 
     // #region agent log
+    const logData4 = {
+      location: "conversations-repository.ts:280",
+      message: "hasUserMessages query result",
+      data: {
+        conversationId,
+        count,
+        countValue: count ?? 0,
+        hasError: !!error,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        hasUserMessages: (count ?? 0) > 0,
+      },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      runId: "run1",
+      hypothesisId: "I",
+    };
+    console.log("[DEBUG]", JSON.stringify(logData4));
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "conversations-repository.ts:280",
-        message: "hasUserMessages query result",
-        data: {
-          conversationId,
-          count,
-          countValue: count ?? 0,
-          hasError: !!error,
-          errorMessage: error?.message,
-          errorCode: error?.code,
-          hasUserMessages: (count ?? 0) > 0,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "I",
-      }),
+      body: JSON.stringify(logData4),
     }).catch(() => {});
     // #endregion
 
