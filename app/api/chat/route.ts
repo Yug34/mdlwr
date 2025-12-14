@@ -227,6 +227,8 @@ export async function POST(req: Request) {
         finalConversationId,
         hasLastUserMessage: !!lastUserMessage,
         willStoreMessages: !!userId,
+        resultTextType: typeof result.text,
+        resultTextIsPromise: result.text instanceof Promise,
       },
       timestamp: Date.now(),
       sessionId: "debug-session",
@@ -239,8 +241,27 @@ export async function POST(req: Request) {
 
     // Always attempt to store messages - let MessageService handle userId check
     // This ensures we can debug why messages aren't being stored
-    result.text
+    // Add logging to verify the promise is being set up
+    const storePromise = result.text
       .then(async (fullText) => {
+        // #region agent log
+        const logDataPromiseResolved = {
+          location: "chat/route.ts:240",
+          message: "Stream text promise resolved",
+          data: {
+            conversationId: finalConversationId,
+            userId,
+            fullTextLength: fullText?.length,
+            hasFullText: !!fullText,
+          },
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+          runId: "run1",
+          hypothesisId: "K",
+        };
+        console.log("[DEBUG]", JSON.stringify(logDataPromiseResolved));
+        await writeDebugLog(logDataPromiseResolved);
+        // #endregion
         try {
           // #region agent log
           const logDataChat3 = {
@@ -271,12 +292,12 @@ export async function POST(req: Request) {
           const messageService = new MessageService();
           // #region agent log
           const logDataBeforeStore = {
-            location: "chat/route.ts:260",
+            location: "chat/route.ts:295",
             message: "Calling storeMessages",
             data: {
               conversationId: finalConversationId,
-              userId,
-              userIdType: typeof userId,
+              userId: currentUserId,
+              userIdType: typeof currentUserId,
               hasUserMessage: !!lastUserMessage,
               assistantContentLength: fullText?.length,
             },
@@ -292,15 +313,15 @@ export async function POST(req: Request) {
             conversationId: finalConversationId,
             userMessage: lastUserMessage,
             assistantContent: fullText,
-            userId,
+            userId: currentUserId, // Use the re-fetched userId
           });
           // #region agent log
           const logDataAfterStore = {
-            location: "chat/route.ts:278",
+            location: "chat/route.ts:318",
             message: "storeMessages completed",
             data: {
               conversationId: finalConversationId,
-              userId,
+              userId: currentUserId,
             },
             timestamp: Date.now(),
             sessionId: "debug-session",
@@ -334,11 +355,11 @@ export async function POST(req: Request) {
         } catch (error) {
           // #region agent log
           const logDataError = {
-            location: "chat/route.ts:295",
+            location: "chat/route.ts:355",
             message: "ERROR storing messages",
             data: {
               conversationId: finalConversationId,
-              userId,
+              userId: currentUserId,
               errorMessage:
                 error instanceof Error ? error.message : String(error),
               errorStack: error instanceof Error ? error.stack : undefined,
@@ -393,6 +414,24 @@ export async function POST(req: Request) {
         // #endregion
         console.error("Error getting stream text:", error);
       });
+
+    // Log that we've set up the promise
+    const logDataPromiseSetup = {
+      location: "chat/route.ts:400",
+      message: "Message storage promise set up",
+      data: {
+        conversationId: finalConversationId,
+        userId,
+        promiseType: typeof storePromise,
+        promiseIsPromise: storePromise instanceof Promise,
+      },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      runId: "run1",
+      hypothesisId: "K",
+    };
+    console.log("[DEBUG]", JSON.stringify(logDataPromiseSetup));
+    await writeDebugLog(logDataPromiseSetup);
 
     // Add conversationId to response headers so frontend can update URL
     const response = result.toUIMessageStreamResponse();
