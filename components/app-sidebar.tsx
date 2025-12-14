@@ -1,10 +1,4 @@
-import { ChevronUp, LogOutIcon } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ExternalLinkIcon, GithubIcon } from "lucide-react";
 
 import {
   Sidebar,
@@ -17,10 +11,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import {
-  getKindeServerSession,
-  LogoutLink,
-} from "@kinde-oss/kinde-auth-nextjs/server";
+import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { Button } from "./ui/button";
 import { SidebarMenuItems } from "./sidebar-menu-items";
 import { ConversationList } from "./conversation-list";
@@ -55,29 +46,18 @@ export async function AppSidebar() {
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton className="cursor-pointer">
-                    <span className="text-sm font-medium rounded-full w-8 h-8 flex items-center justify-center border border-gray-400 border-2 leading-none">
-                      {user?.given_name?.charAt(0)}
-                      {user?.family_name?.charAt(0)}
-                    </span>
-                    <ChevronUp className="ml-auto" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="top"
-                  className="w-[--radix-popper-anchor-width]"
-                >
-                  <DropdownMenuItem>
-                    <LogoutLink>
-                      <Button variant="ghost" size="sm">
-                        Logout
-                      </Button>
-                    </LogoutLink>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <a
+                className="cursor-pointer flex items-center justify-between p-2 hover:bg-accent hover:text-accent-foreground"
+                href="https://github.com/Yug34/mdlwr"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span className="flex items-center justify-start gap-2">
+                  <GithubIcon className="w-4 h-4" />
+                  Source Code
+                </span>
+                <ExternalLinkIcon className="w-4 h-4" />
+              </a>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
