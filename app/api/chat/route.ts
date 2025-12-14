@@ -244,15 +244,29 @@ export async function POST(req: Request) {
     // Add logging to verify the promise is being set up
     const storePromise = result.text
       .then(async (fullText) => {
+        // Re-fetch authenticated user inside the promise to ensure we have userId
+        // This handles cases where authentication state might have changed
+        let currentUserId = userId;
+        if (!currentUserId) {
+          try {
+            const authUser = await getAuthenticatedUser();
+            currentUserId = authUser?.userId ?? null;
+          } catch (error) {
+            console.error("[DEBUG] Error re-fetching user in promise:", error);
+          }
+        }
+
         // #region agent log
         const logDataPromiseResolved = {
-          location: "chat/route.ts:240",
+          location: "chat/route.ts:247",
           message: "Stream text promise resolved",
           data: {
             conversationId: finalConversationId,
-            userId,
+            originalUserId: userId,
+            currentUserId,
             fullTextLength: fullText?.length,
             hasFullText: !!fullText,
+            userIdChanged: userId !== currentUserId,
           },
           timestamp: Date.now(),
           sessionId: "debug-session",
@@ -262,6 +276,27 @@ export async function POST(req: Request) {
         console.log("[DEBUG]", JSON.stringify(logDataPromiseResolved));
         await writeDebugLog(logDataPromiseResolved);
         // #endregion
+
+        // If still no userId, log and skip
+        if (!currentUserId) {
+          const logNoUserId = {
+            location: "chat/route.ts:270",
+            message: "Skipping message storage - no userId available",
+            data: {
+              conversationId: finalConversationId,
+              originalUserId: userId,
+              currentUserId,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "K",
+          };
+          console.error("[DEBUG ERROR]", JSON.stringify(logNoUserId));
+          await writeDebugLog(logNoUserId);
+          return;
+        }
+
         try {
           // #region agent log
           const logDataChat3 = {
