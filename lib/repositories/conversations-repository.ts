@@ -9,6 +9,18 @@ import {
   NotFoundError,
   AuthorizationError,
 } from "@/lib/errors/app-errors";
+import { appendFile } from "fs/promises";
+import { join } from "path";
+
+// Helper to write debug logs to file
+async function writeDebugLog(data: any) {
+  try {
+    const logPath = join(process.cwd(), ".cursor", "debug.log");
+    await appendFile(logPath, JSON.stringify(data) + "\n");
+  } catch (e) {
+    // Silently fail if file write doesn't work
+  }
+}
 
 export class ConversationsRepository {
   /**
@@ -201,6 +213,7 @@ export class ConversationsRepository {
       hypothesisId: "F",
     };
     console.log("[DEBUG]", JSON.stringify(logData5));
+    await writeDebugLog(logData5);
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -313,6 +326,7 @@ export class ConversationsRepository {
       hypothesisId: "I",
     };
     console.log("[DEBUG]", JSON.stringify(logData4));
+    await writeDebugLog(logData4);
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

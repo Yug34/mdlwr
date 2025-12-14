@@ -7,6 +7,18 @@ import { ConversationsRepository } from "@/lib/repositories/conversations-reposi
 import { InputMessage, MessagePart } from "@/lib/types";
 import { extractMessageContent } from "@/lib/utils/message-utils";
 import { MAX_CONVERSATION_TITLE_LENGTH } from "@/lib/constants/conversation-config";
+import { appendFile } from "fs/promises";
+import { join } from "path";
+
+// Helper to write debug logs to file
+async function writeDebugLog(data: any) {
+  try {
+    const logPath = join(process.cwd(), ".cursor", "debug.log");
+    await appendFile(logPath, JSON.stringify(data) + "\n");
+  } catch (e) {
+    // Silently fail if file write doesn't work
+  }
+}
 
 export interface StoreMessagesParams {
   conversationId: string;
@@ -47,6 +59,7 @@ export class MessageService {
       hypothesisId: "I",
     };
     console.log("[DEBUG]", JSON.stringify(logData1));
+    await writeDebugLog(logData1);
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -67,6 +80,7 @@ export class MessageService {
         hypothesisId: "I",
       };
       console.log("[DEBUG]", JSON.stringify(logData2));
+      await writeDebugLog(logData2);
       fetch(
         "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
         {
@@ -179,43 +193,49 @@ export class MessageService {
     userContent: string
   ): Promise<void> {
     // #region agent log
+    const logData6 = {
+      location: "message-service.ts:191",
+      message: "setConversationTitleIfNeeded called",
+      data: {
+        conversationId,
+        userContent,
+        userContentLength: userContent?.length,
+        isEmpty: !userContent || userContent.trim() === "",
+      },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      runId: "run1",
+      hypothesisId: "C",
+    };
+    console.log("[DEBUG]", JSON.stringify(logData6));
+    await writeDebugLog(logData6);
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "message-service.ts:61",
-        message: "setConversationTitleIfNeeded called",
-        data: {
-          conversationId,
-          userContent,
-          userContentLength: userContent?.length,
-          isEmpty: !userContent || userContent.trim() === "",
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "C",
-      }),
+      body: JSON.stringify(logData6),
     }).catch(() => {});
     // #endregion
     // Check if conversation already has a title
     const existingTitle = await this.conversationsRepo.getTitle(conversationId);
     // #region agent log
+    const logData7 = {
+      location: "message-service.ts:216",
+      message: "Existing title check",
+      data: {
+        existingTitle,
+        hasTitle: !!(existingTitle && existingTitle.trim() !== ""),
+      },
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      runId: "run1",
+      hypothesisId: "B",
+    };
+    console.log("[DEBUG]", JSON.stringify(logData7));
+    await writeDebugLog(logData7);
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "message-service.ts:66",
-        message: "Existing title check",
-        data: {
-          existingTitle,
-          hasTitle: !!(existingTitle && existingTitle.trim() !== ""),
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "B",
-      }),
+      body: JSON.stringify(logData7),
     }).catch(() => {});
     // #endregion
     if (existingTitle && existingTitle.trim() !== "") {
@@ -237,6 +257,7 @@ export class MessageService {
       hypothesisId: "D",
     };
     console.log("[DEBUG]", JSON.stringify(logData3));
+    await writeDebugLog(logData3);
     fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -295,26 +316,29 @@ export class MessageService {
       // Verify the title was actually set by reading it back
       const verifyTitle = await this.conversationsRepo.getTitle(conversationId);
       // #region agent log
+      const logData8 = {
+        location: "message-service.ts:285",
+        message: "Title verification after update",
+        data: {
+          conversationId,
+          expectedTitle: title,
+          actualTitle: verifyTitle,
+          matches: verifyTitle === title,
+          isNull: verifyTitle === null,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "F",
+      };
+      console.log("[DEBUG]", JSON.stringify(logData8));
+      await writeDebugLog(logData8);
       fetch(
         "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "message-service.ts:175",
-            message: "Title verification after update",
-            data: {
-              conversationId,
-              expectedTitle: title,
-              actualTitle: verifyTitle,
-              matches: verifyTitle === title,
-              isNull: verifyTitle === null,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "F",
-          }),
+          body: JSON.stringify(logData8),
         }
       ).catch(() => {});
       // #endregion
