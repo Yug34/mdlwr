@@ -1,6 +1,6 @@
 import { streamText, convertToModelMessages } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { requireAuth } from "@/lib/api/auth-helpers";
+import { getAuthenticatedUser } from "@/lib/api/auth-helpers";
 import { getUserProfile, saveUserProfile } from "@/lib/supabase/profiles";
 import {
   isSelfReferenceQuery,
@@ -78,8 +78,9 @@ export async function POST(req: Request) {
     }).catch(() => {});
     // #endregion
 
-    // Authenticate user
-    const { userId } = await requireAuth();
+    // Get authenticated user (optional)
+    const authenticatedUser = await getAuthenticatedUser();
+    const userId = authenticatedUser?.userId ?? null;
 
     // Resolve or create conversation
     const conversationService = new ConversationService();
@@ -95,11 +96,11 @@ export async function POST(req: Request) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    // Check for self-reference query and get profile if needed
+    // Check for self-reference query and get profile if needed (only for authenticated users)
     const userMessageContent = extractLastUserMessageContent(messages);
     let profileText: string | null = null;
 
-    if (userMessageContent) {
+    if (userMessageContent && userId) {
       const isSelfRef = await isSelfReferenceQuery(userMessageContent, openai);
 
       if (isSelfRef) {
@@ -155,24 +156,27 @@ export async function POST(req: Request) {
       ),
     });
 
-    // Store messages after streaming completes
+    // Store messages after streaming completes (only for authenticated users)
     const lastUserMessage = getLastUserMessage(messages);
-    result.text
-      .then(async (fullText) => {
-        try {
-          const messageService = new MessageService();
-          await messageService.storeMessages({
-            conversationId: finalConversationId,
-            userMessage: lastUserMessage,
-            assistantContent: fullText,
-          });
-        } catch (error) {
-          console.error("Error storing messages:", error);
-        }
-      })
-      .catch((error) => {
-        console.error("Error getting stream text:", error);
-      });
+    if (userId) {
+      result.text
+        .then(async (fullText) => {
+          try {
+            const messageService = new MessageService();
+            await messageService.storeMessages({
+              conversationId: finalConversationId,
+              userMessage: lastUserMessage,
+              assistantContent: fullText,
+              userId,
+            });
+          } catch (error) {
+            console.error("Error storing messages:", error);
+          }
+        })
+        .catch((error) => {
+          console.error("Error getting stream text:", error);
+        });
+    }
 
     // Add conversationId to response headers so frontend can update URL
     const response = result.toUIMessageStreamResponse();

@@ -21,6 +21,14 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { getRandomSuggestions } from "@/lib/utils";
 
 export function ChatClient() {
@@ -33,6 +41,9 @@ export function ChatClient() {
   );
   const [randomSuggestions, setRandomSuggestions] = useState<string[]>([]);
   const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false);
+  const [showUnauthenticatedDialog, setShowUnauthenticatedDialog] =
+    useState(false);
+  const [hasShownDialog, setHasShownDialog] = useState(false);
 
   // Use a ref to always have the latest conversationId in the body function
   const conversationIdRef = useRef<string | null>(conversationId);
@@ -225,59 +236,48 @@ export function ChatClient() {
       const currentId =
         urlConversationId || conversationIdRef.current || conversationId;
       if (!currentId && messages.length === 0) {
+        let newConversationId: string | null = null;
+
         try {
-          // #region agent log
-          fetch(
-            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                location: "chat-client.tsx:205",
-                message: "Creating conversation before first message",
-                data: {
-                  messageText:
-                    typeof message === "object" &&
-                    message !== null &&
-                    "text" in message
-                      ? message.text
-                      : undefined,
-                  messageContent:
-                    typeof message === "object" &&
-                    message !== null &&
-                    "content" in message
-                      ? message.content
-                      : undefined,
-                },
-                timestamp: Date.now(),
-                sessionId: "debug-session",
-                runId: "run1",
-                hypothesisId: "A",
-              }),
-            }
-          ).catch(() => {});
-          // #endregion
+          // Try to create a persisted conversation for authenticated users
           const response = await fetch("/api/conversations", {
             method: "POST",
           });
           if (response.ok) {
             const data = await response.json();
-            const newConversationId = data.conversationId;
-
-            // Update ref, state, and URL immediately
-            conversationIdRef.current = newConversationId;
-            setConversationId(newConversationId);
-            router.replace(`/?conversationId=${newConversationId}`);
+            newConversationId = data.conversationId;
             // Dispatch event to notify ConversationList to refresh
             window.dispatchEvent(
               new CustomEvent("conversationCreated", {
                 detail: { conversationId: newConversationId },
               })
             );
+          } else if (response.status === 401 || response.status === 403) {
+            // Unauthenticated user - generate session-only conversation ID
+            newConversationId = crypto.randomUUID();
+            // Show dialog on first message if we haven't shown it yet
+            if (!hasShownDialog) {
+              setShowUnauthenticatedDialog(true);
+              setHasShownDialog(true);
+            }
           }
         } catch (error) {
           console.error("Error creating conversation:", error);
-          // Continue anyway - backend will create conversation
+          // For unauthenticated users or other errors, generate session-only ID
+          newConversationId = crypto.randomUUID();
+          // Show dialog on first message if we haven't shown it yet
+          // (This handles network errors that might also indicate unauthenticated state)
+          if (!hasShownDialog && messages.length === 0) {
+            setShowUnauthenticatedDialog(true);
+            setHasShownDialog(true);
+          }
+        }
+
+        // Update ref, state, and URL with the conversation ID (persisted or session-only)
+        if (newConversationId) {
+          conversationIdRef.current = newConversationId;
+          setConversationId(newConversationId);
+          router.replace(`/?conversationId=${newConversationId}`);
         }
       }
 
@@ -474,6 +474,26 @@ export function ChatClient() {
           )}
         </div>
       </div>
+
+      <Dialog
+        open={showUnauthenticatedDialog}
+        onOpenChange={setShowUnauthenticatedDialog}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Conversation Not Stored</DialogTitle>
+            <DialogDescription>
+              This conversation will not be stored and will be inaccessible
+              after this session ends. Sign in to save your conversations.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowUnauthenticatedDialog(false)}>
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

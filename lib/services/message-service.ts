@@ -12,6 +12,7 @@ export interface StoreMessagesParams {
   conversationId: string;
   userMessage: InputMessage | undefined;
   assistantContent: string;
+  userId: string | null;
 }
 
 export class MessageService {
@@ -23,9 +24,15 @@ export class MessageService {
   /**
    * Store user and assistant messages
    * Also handles setting conversation title if it's the first user message
+   * Only stores messages in database for authenticated users (userId is not null)
    */
   async storeMessages(params: StoreMessagesParams): Promise<void> {
-    const { conversationId, userMessage, assistantContent } = params;
+    const { conversationId, userMessage, assistantContent, userId } = params;
+
+    // Skip database operations for unauthenticated users (session-only conversations)
+    if (userId === null) {
+      return;
+    }
 
     // Store user message first (if exists)
     if (userMessage && userMessage.role === "user") {

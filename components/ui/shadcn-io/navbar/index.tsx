@@ -180,10 +180,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
               <>
                 <div>Logged in as {userGivenName}</div>
                 <LogoutLink>
-                  <Button
-                    size="sm"
-                    className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-                  >
+                  <Button size="sm" className="text-sm font-medium">
                     Logout <LogOutIcon />
                   </Button>
                 </LogoutLink>

@@ -2,6 +2,7 @@
  * Service for conversation resolution and management
  */
 
+import { randomUUID } from "crypto";
 import { ConversationsRepository } from "@/lib/repositories/conversations-repository";
 import { MessagesRepository } from "@/lib/repositories/messages-repository";
 import { InputMessage } from "@/lib/types";
@@ -12,7 +13,7 @@ import {
 } from "@/lib/errors/app-errors";
 
 export interface ResolveConversationParams {
-  userId: string;
+  userId: string | null;
   conversationId?: string | null;
   messages?: InputMessage[];
 }
@@ -26,12 +27,24 @@ export class ConversationService {
   /**
    * Resolve or create a conversation ID
    * Handles all edge cases for conversation resolution
+   * For unauthenticated users (userId is null), returns session-only conversation IDs
    */
   async resolveOrCreateConversation(
     params: ResolveConversationParams
   ): Promise<string> {
     const { userId, conversationId, messages } = params;
 
+    // For unauthenticated users, use session-only conversation IDs
+    if (userId === null) {
+      if (conversationId && conversationId.trim() !== "") {
+        // Return the provided conversationId (session-only, not persisted)
+        return conversationId;
+      }
+      // Generate a new UUID for session-only conversations
+      return randomUUID();
+    }
+
+    // Authenticated user flow
     // If conversationId is provided, verify it and return it (or create new if invalid)
     if (conversationId && conversationId.trim() !== "") {
       return this.verifyOrCreateConversation(userId, conversationId);
@@ -122,6 +135,7 @@ export class ConversationService {
 
   /**
    * Create a new conversation
+   * Only called for authenticated users (userId is never null here)
    */
   private async createConversation(userId: string): Promise<string> {
     try {
