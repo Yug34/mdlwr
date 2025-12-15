@@ -144,7 +144,7 @@ export async function POST(req: Request) {
         .then(async (fullText) => {
           // Re-fetch authenticated user inside the promise to ensure we have userId
           // This handles cases where authentication state might have changed
-          let currentUserId = userId;
+          let currentUserId: string | null = userId;
           if (!currentUserId) {
             try {
               const authUser = await getAuthenticatedUser();
