@@ -100,7 +100,15 @@ export function ConversationList() {
   }
 
   if (conversations.length === 0) {
-    return null;
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton disabled>
+          <span className="text-sm text-muted-foreground">
+            No conversations yet
+          </span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
   }
 
   return (
