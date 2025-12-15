@@ -351,7 +351,6 @@ export function ChatClient() {
     status === "submitted" && lastMessageIsAssistantEmpty;
 
   const handleSuggestionClick = (suggestion: string) => {
-    console.log("🟢 handleSuggestionClick called with:", suggestion);
     sendMessage({ text: suggestion });
   };
 
@@ -414,10 +413,6 @@ export function ChatClient() {
             onSubmit={(message, event) => {
               event.preventDefault();
               if (message.text) {
-                console.log(
-                  "🟢 PromptInput onSubmit called with:",
-                  message.text
-                );
                 sendMessage({ text: message.text });
                 setInput("");
               }

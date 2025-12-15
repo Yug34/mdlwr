@@ -23,18 +23,12 @@ export async function getOrCreateUser(
     .single();
 
   if (existingUser) {
-    console.log("Found existing user:", existingUser.id);
     return existingUser.id;
   }
 
   // If user doesn't exist, create one
   if (findError && findError.code === "PGRST116") {
     // PGRST116 means no rows returned (user doesn't exist)
-    console.log(
-      "User not found, creating new user for kinde_user_id:",
-      kindeUser.id
-    );
-
     const { data: newUser, error: createError } = await supabase
       .from("users")
       .insert({
@@ -49,7 +43,6 @@ export async function getOrCreateUser(
       return null;
     }
 
-    console.log("Created new user:", newUser.id);
     return newUser.id;
   }
 
