@@ -140,8 +140,49 @@ export async function POST(req: Request) {
 
     // Store assistant message when stream completes
     if (userId) {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "route.ts:142",
+            message: "Setting up result.text promise handler",
+            data: { userId, conversationId: finalConversationId },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "A",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
       result.text
         .then(async (fullText) => {
+          // #region agent log
+          fetch(
+            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                location: "route.ts:144",
+                message: "result.text promise resolved",
+                data: {
+                  fullTextLength: fullText?.length || 0,
+                  fullTextIsEmpty: !fullText,
+                  fullTextType: typeof fullText,
+                  userId,
+                },
+                timestamp: Date.now(),
+                sessionId: "debug-session",
+                runId: "run1",
+                hypothesisId: "E",
+              }),
+            }
+          ).catch(() => {});
+          // #endregion
           // Re-fetch authenticated user inside the promise to ensure we have userId
           // This handles cases where authentication state might have changed
           let currentUserId: string | null = userId;
@@ -149,17 +190,93 @@ export async function POST(req: Request) {
             try {
               const authUser = await getAuthenticatedUser();
               currentUserId = authUser?.userId ?? null;
+              // #region agent log
+              fetch(
+                "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    location: "route.ts:151",
+                    message: "Re-fetched userId in promise",
+                    data: { currentUserId },
+                    timestamp: Date.now(),
+                    sessionId: "debug-session",
+                    runId: "run1",
+                    hypothesisId: "C",
+                  }),
+                }
+              ).catch(() => {});
+              // #endregion
             } catch (error) {
+              // #region agent log
+              fetch(
+                "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    location: "route.ts:153",
+                    message: "Error re-fetching user in promise",
+                    data: { error: String(error) },
+                    timestamp: Date.now(),
+                    sessionId: "debug-session",
+                    runId: "run1",
+                    hypothesisId: "C",
+                  }),
+                }
+              ).catch(() => {});
+              // #endregion
               console.error("Error re-fetching user in promise:", error);
             }
           }
 
           // If still no userId, skip
           if (!currentUserId) {
+            // #region agent log
+            fetch(
+              "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  location: "route.ts:159",
+                  message: "Skipping save due to null userId",
+                  data: { currentUserId },
+                  timestamp: Date.now(),
+                  sessionId: "debug-session",
+                  runId: "run1",
+                  hypothesisId: "C",
+                }),
+              }
+            ).catch(() => {});
+            // #endregion
             return;
           }
 
           try {
+            // #region agent log
+            fetch(
+              "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  location: "route.ts:163",
+                  message: "About to call storeMessages for assistant",
+                  data: {
+                    conversationId: finalConversationId,
+                    assistantContentLength: fullText?.length || 0,
+                    userId: currentUserId,
+                  },
+                  timestamp: Date.now(),
+                  sessionId: "debug-session",
+                  runId: "run1",
+                  hypothesisId: "D",
+                }),
+              }
+            ).catch(() => {});
+            // #endregion
             const messageService = new MessageService();
             // Only store assistant message here since user message was already stored above
             await messageService.storeMessages({
@@ -168,16 +285,92 @@ export async function POST(req: Request) {
               assistantContent: fullText,
               userId: currentUserId, // Use the re-fetched userId
             });
+            // #region agent log
+            fetch(
+              "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  location: "route.ts:171",
+                  message: "storeMessages completed successfully",
+                  data: { conversationId: finalConversationId },
+                  timestamp: Date.now(),
+                  sessionId: "debug-session",
+                  runId: "run1",
+                  hypothesisId: "D",
+                }),
+              }
+            ).catch(() => {});
+            // #endregion
           } catch (error) {
+            // #region agent log
+            fetch(
+              "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  location: "route.ts:173",
+                  message: "Error in storeMessages",
+                  data: {
+                    error: String(error),
+                    errorStack: error instanceof Error ? error.stack : null,
+                    conversationId: finalConversationId,
+                  },
+                  timestamp: Date.now(),
+                  sessionId: "debug-session",
+                  runId: "run1",
+                  hypothesisId: "D",
+                }),
+              }
+            ).catch(() => {});
+            // #endregion
             console.error("Error storing messages:", error);
           }
         })
         .catch((error) => {
+          // #region agent log
+          fetch(
+            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                location: "route.ts:176",
+                message: "result.text promise rejected",
+                data: {
+                  error: String(error),
+                  errorStack: error instanceof Error ? error.stack : null,
+                },
+                timestamp: Date.now(),
+                sessionId: "debug-session",
+                runId: "run1",
+                hypothesisId: "B",
+              }),
+            }
+          ).catch(() => {});
+          // #endregion
           console.error("Error getting stream text:", error);
         });
     }
 
     // Add conversationId to response headers so frontend can update URL
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "route.ts:181",
+        message: "Returning HTTP response (before promise completes)",
+        data: { conversationId: finalConversationId, userId },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "A",
+      }),
+    }).catch(() => {});
+    // #endregion
     const response = result.toUIMessageStreamResponse();
     response.headers.set("X-Conversation-Id", finalConversationId);
     return response;

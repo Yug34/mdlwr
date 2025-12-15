@@ -77,13 +77,92 @@ export class MessageService {
     }
 
     // Store assistant message
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "message-service.ts:80",
+        message: "Checking assistantContent before saving",
+        data: {
+          assistantContentLength: assistantContent?.length || 0,
+          assistantContentIsEmpty: !assistantContent,
+          assistantContentType: typeof assistantContent,
+          conversationId,
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "E",
+      }),
+    }).catch(() => {});
+    // #endregion
     if (assistantContent) {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "message-service.ts:81",
+            message: "About to create assistant message in DB",
+            data: {
+              conversationId,
+              assistantContentLength: assistantContent.length,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "D",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
       await this.messagesRepo.create(
         conversationId,
         "assistant",
         assistantContent,
         [{ type: "text", text: assistantContent }]
       );
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "message-service.ts:87",
+            message: "Assistant message created in DB successfully",
+            data: { conversationId },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "D",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
+    } else {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "message-service.ts:88",
+            message:
+              "Skipping assistant message save - assistantContent is empty",
+            data: { assistantContent, conversationId },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "E",
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
     }
   }
 
