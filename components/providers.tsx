@@ -5,12 +5,18 @@ import { KindeProvider } from "@kinde-oss/kinde-auth-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 export function Providers({ children }: { children: ReactNode }) {
+  const redirectUri = process.env.NEXT_PUBLIC_KINDE_REDIRECT_URI!;
+  const logoutUri =
+    process.env.NEXT_PUBLIC_KINDE_LOGOUT_URI ??
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    redirectUri;
+
   return (
     <KindeProvider
       clientId={process.env.NEXT_PUBLIC_KINDE_CLIENT_ID!}
       domain={process.env.NEXT_PUBLIC_KINDE_DOMAIN!}
-      redirectUri={process.env.NEXT_PUBLIC_KINDE_REDIRECT_URI!}
-      logoutUri={process.env.NEXT_PUBLIC_KINDE_LOGOUT_URI}
+      redirectUri={redirectUri}
+      logoutUri={logoutUri}
     >
       <SidebarProvider defaultOpen={true}>{children}</SidebarProvider>
     </KindeProvider>

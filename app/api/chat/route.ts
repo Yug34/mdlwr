@@ -22,8 +22,8 @@ import { MIN_MESSAGES_FOR_PROFILE } from "@/lib/constants/conversation-config";
 import { ChatRequest, InputMessage } from "@/lib/types";
 import { ValidationError } from "@/lib/errors/app-errors";
 
-// Allow streaming responses up to 30 seconds
-export const maxDuration = 30;
+// Allow streaming responses up to 60 seconds
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
