@@ -92,7 +92,7 @@ export class MessageService {
         },
         timestamp: Date.now(),
         sessionId: "debug-session",
-        runId: "post-fix",
+        runId: "post-fix-v2",
         hypothesisId: "E",
       }),
     }).catch(() => {});
@@ -113,8 +113,8 @@ export class MessageService {
             },
             timestamp: Date.now(),
             sessionId: "debug-session",
-            runId: "post-fix",
-            hypothesisId: "D",
+        runId: "post-fix-v2",
+        hypothesisId: "D",
           }),
         }
       ).catch(() => {});
@@ -137,8 +137,8 @@ export class MessageService {
             data: { conversationId },
             timestamp: Date.now(),
             sessionId: "debug-session",
-            runId: "post-fix",
-            hypothesisId: "D",
+        runId: "post-fix-v2",
+        hypothesisId: "D",
           }),
         }
       ).catch(() => {});

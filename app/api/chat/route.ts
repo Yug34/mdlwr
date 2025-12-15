@@ -1,5 +1,6 @@
 import { streamText, convertToModelMessages } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
+import { after } from "next/server";
 import { getAuthenticatedUser } from "@/lib/api/auth-helpers";
 import { getUserProfile, saveUserProfile } from "@/lib/supabase/profiles";
 import {
@@ -139,8 +140,8 @@ export async function POST(req: Request) {
     }
 
     // Store assistant message when stream completes
-    // Store the promise explicitly to prevent garbage collection and ensure it's tracked
-    let assistantSavePromise: Promise<void> | null = null;
+    // Use Next.js `after` function to ensure the save completes even after response is sent
+    // This is critical in serverless environments where the function may terminate after response
     if (userId) {
       // #region agent log
       fetch(
@@ -150,19 +151,41 @@ export async function POST(req: Request) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             location: "route.ts:142",
-            message: "Setting up result.text promise handler",
+            message: "Setting up result.text promise handler with after()",
             data: { userId, conversationId: finalConversationId },
             timestamp: Date.now(),
             sessionId: "debug-session",
-            runId: "post-fix",
+            runId: "post-fix-v2",
             hypothesisId: "A",
           }),
         }
       ).catch(() => {});
       // #endregion
-      // Store promise to ensure it's tracked and doesn't get garbage collected
-      assistantSavePromise = result.text
-        .then(async (fullText) => {
+      
+      // Use `after` to ensure the promise completes even after response is sent
+      // This prevents serverless function termination from killing the async work
+      after(async () => {
+        try {
+          // #region agent log
+          fetch(
+            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                location: "route.ts:after",
+                message: "after() callback started, awaiting result.text",
+                data: { userId, conversationId: finalConversationId },
+                timestamp: Date.now(),
+                sessionId: "debug-session",
+                runId: "post-fix-v2",
+                hypothesisId: "A",
+              }),
+            }
+          ).catch(() => {});
+          // #endregion
+          
+          const fullText = await result.text;
           // #region agent log
           fetch(
             "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
@@ -180,7 +203,7 @@ export async function POST(req: Request) {
                 },
                 timestamp: Date.now(),
                 sessionId: "debug-session",
-                runId: "post-fix",
+                runId: "post-fix-v2",
                 hypothesisId: "E",
               }),
             }
@@ -205,8 +228,8 @@ export async function POST(req: Request) {
                     data: { currentUserId },
                     timestamp: Date.now(),
                     sessionId: "debug-session",
-                    runId: "post-fix",
-                    hypothesisId: "C",
+                runId: "post-fix-v2",
+                hypothesisId: "C",
                   }),
                 }
               ).catch(() => {});
@@ -224,8 +247,8 @@ export async function POST(req: Request) {
                     data: { error: String(error) },
                     timestamp: Date.now(),
                     sessionId: "debug-session",
-                    runId: "post-fix",
-                    hypothesisId: "C",
+                runId: "post-fix-v2",
+                hypothesisId: "C",
                   }),
                 }
               ).catch(() => {});
@@ -248,8 +271,8 @@ export async function POST(req: Request) {
                   data: { currentUserId },
                   timestamp: Date.now(),
                   sessionId: "debug-session",
-                  runId: "post-fix",
-                  hypothesisId: "C",
+                runId: "post-fix-v2",
+                hypothesisId: "C",
                 }),
               }
             ).catch(() => {});
@@ -274,8 +297,8 @@ export async function POST(req: Request) {
                   },
                   timestamp: Date.now(),
                   sessionId: "debug-session",
-                  runId: "post-fix",
-                  hypothesisId: "D",
+                runId: "post-fix-v2",
+                hypothesisId: "D",
                 }),
               }
             ).catch(() => {});
@@ -300,8 +323,8 @@ export async function POST(req: Request) {
                   data: { conversationId: finalConversationId },
                   timestamp: Date.now(),
                   sessionId: "debug-session",
-                  runId: "post-fix",
-                  hypothesisId: "D",
+                runId: "post-fix-v2",
+                hypothesisId: "D",
                 }),
               }
             ).catch(() => {});
@@ -323,16 +346,15 @@ export async function POST(req: Request) {
                   },
                   timestamp: Date.now(),
                   sessionId: "debug-session",
-                  runId: "post-fix",
-                  hypothesisId: "D",
+                runId: "post-fix-v2",
+                hypothesisId: "D",
                 }),
               }
             ).catch(() => {});
             // #endregion
             console.error("Error storing messages:", error);
           }
-        })
-        .catch((error) => {
+        } catch (error) {
           // #region agent log
           fetch(
             "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
@@ -340,60 +362,23 @@ export async function POST(req: Request) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                location: "route.ts:176",
-                message: "result.text promise rejected",
+                location: "route.ts:after-catch",
+                message: "Error in after() callback - result.text promise rejected",
                 data: {
                   error: String(error),
                   errorStack: error instanceof Error ? error.stack : null,
                 },
                 timestamp: Date.now(),
                 sessionId: "debug-session",
-                runId: "post-fix",
+                runId: "post-fix-v2",
                 hypothesisId: "B",
               }),
             }
           ).catch(() => {});
           // #endregion
-          console.error("Error getting stream text:", error);
-        })
-        .then(() => {
-          // Ensure promise resolves even if there's no explicit return
-          // #region agent log
-          fetch(
-            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                location: "route.ts:359",
-                message: "Assistant save promise completed successfully",
-                data: { conversationId: finalConversationId },
-                timestamp: Date.now(),
-                sessionId: "debug-session",
-                runId: "post-fix",
-                hypothesisId: "A",
-              }),
-            }
-          ).catch(() => {});
-          // #endregion
-          return;
-        })
-        .catch(() => {
-          // Additional error handling - already logged above
-        });
-
-      // Explicitly keep reference to promise to prevent garbage collection
-      // In serverless environments, storing the promise ensures it's tracked
-      // and the runtime knows to wait for it before terminating
-      // Store in a way that prevents GC but doesn't block the response
-      if (assistantSavePromise) {
-        // Ensure the promise is in the closure and tracked by the runtime
-        // This pattern helps in serverless environments where the function
-        // should stay alive as long as there are pending promises
-        assistantSavePromise.catch(() => {
-          // Silently handle any errors - they're already logged above
-        });
-      }
+          console.error("Error in after() callback:", error);
+        }
+      });
     }
 
     // Add conversationId to response headers so frontend can update URL
