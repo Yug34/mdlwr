@@ -161,7 +161,7 @@ export async function POST(req: Request) {
         }
       ).catch(() => {});
       // #endregion
-      
+
       // Use `after` to ensure the promise completes even after response is sent
       // This prevents serverless function termination from killing the async work
       after(async () => {
@@ -184,7 +184,7 @@ export async function POST(req: Request) {
             }
           ).catch(() => {});
           // #endregion
-          
+
           const fullText = await result.text;
           // #region agent log
           fetch(
@@ -228,8 +228,8 @@ export async function POST(req: Request) {
                     data: { currentUserId },
                     timestamp: Date.now(),
                     sessionId: "debug-session",
-                runId: "post-fix-v2",
-                hypothesisId: "C",
+                    runId: "post-fix-v2",
+                    hypothesisId: "C",
                   }),
                 }
               ).catch(() => {});
@@ -247,8 +247,8 @@ export async function POST(req: Request) {
                     data: { error: String(error) },
                     timestamp: Date.now(),
                     sessionId: "debug-session",
-                runId: "post-fix-v2",
-                hypothesisId: "C",
+                    runId: "post-fix-v2",
+                    hypothesisId: "C",
                   }),
                 }
               ).catch(() => {});
@@ -271,8 +271,8 @@ export async function POST(req: Request) {
                   data: { currentUserId },
                   timestamp: Date.now(),
                   sessionId: "debug-session",
-                runId: "post-fix-v2",
-                hypothesisId: "C",
+                  runId: "post-fix-v2",
+                  hypothesisId: "C",
                 }),
               }
             ).catch(() => {});
@@ -297,8 +297,8 @@ export async function POST(req: Request) {
                   },
                   timestamp: Date.now(),
                   sessionId: "debug-session",
-                runId: "post-fix-v2",
-                hypothesisId: "D",
+                  runId: "post-fix-v2",
+                  hypothesisId: "D",
                 }),
               }
             ).catch(() => {});
@@ -323,8 +323,8 @@ export async function POST(req: Request) {
                   data: { conversationId: finalConversationId },
                   timestamp: Date.now(),
                   sessionId: "debug-session",
-                runId: "post-fix-v2",
-                hypothesisId: "D",
+                  runId: "post-fix-v2",
+                  hypothesisId: "D",
                 }),
               }
             ).catch(() => {});
@@ -346,8 +346,8 @@ export async function POST(req: Request) {
                   },
                   timestamp: Date.now(),
                   sessionId: "debug-session",
-                runId: "post-fix-v2",
-                hypothesisId: "D",
+                  runId: "post-fix-v2",
+                  hypothesisId: "D",
                 }),
               }
             ).catch(() => {});
@@ -363,7 +363,8 @@ export async function POST(req: Request) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 location: "route.ts:after-catch",
-                message: "Error in after() callback - result.text promise rejected",
+                message:
+                  "Error in after() callback - result.text promise rejected",
                 data: {
                   error: String(error),
                   errorStack: error instanceof Error ? error.stack : null,
