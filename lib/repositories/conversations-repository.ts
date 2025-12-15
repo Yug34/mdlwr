@@ -9,20 +9,6 @@ import {
   NotFoundError,
   AuthorizationError,
 } from "@/lib/errors/app-errors";
-import { appendFile, mkdir } from "fs/promises";
-import { join, dirname } from "path";
-
-// Helper to write debug logs to file
-async function writeDebugLog(data: any) {
-  try {
-    const logPath = join(process.cwd(), ".cursor", "debug.log");
-    const logDir = dirname(logPath);
-    await mkdir(logDir, { recursive: true });
-    await appendFile(logPath, JSON.stringify(data) + "\n");
-  } catch (e) {
-    console.error("[DEBUG LOG ERROR]", e);
-  }
-}
 
 export class ConversationsRepository {
   /**
@@ -32,48 +18,14 @@ export class ConversationsRepository {
     userId: string,
     title: string | null = null
   ): Promise<Conversation> {
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "conversations-repository.ts:17",
-        message: "ConversationsRepository.create called",
-        data: {
-          title,
-          titleType: typeof title,
-          isNull: title === null,
-          isUndefined: title === undefined,
-          titleLength: title?.length,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "A",
-      }),
-    }).catch(() => {});
-    // #endregion
     const supabase = createSupabaseClient();
 
-    const insertData = { title, user_id: userId };
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "conversations-repository.ts:25",
-        message: "Data being inserted to database",
-        data: { insertData, titleInInsert: insertData.title },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "A",
-      }),
-    }).catch(() => {});
-    // #endregion
     const { data: conversation, error } = await supabase
       .from("conversations")
-      .insert(insertData)
+      .insert({
+        title,
+        user_id: userId,
+      })
       .select()
       .single();
 
@@ -166,119 +118,18 @@ export class ConversationsRepository {
    * Update conversation title
    */
   async updateTitle(conversationId: string, title: string): Promise<void> {
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "conversations-repository.ts:154",
-        message: "updateTitle called",
-        data: {
-          conversationId,
-          title,
-          titleType: typeof title,
-          titleLength: title?.length,
-          isNull: title === null,
-          isUndefined: title === undefined,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "F",
-      }),
-    }).catch(() => {});
-    // #endregion
     const supabase = createSupabaseClient();
 
-    const { error, data } = await supabase
+    const { error } = await supabase
       .from("conversations")
       .update({ title })
-      .eq("id", conversationId)
-      .select();
-
-    // #region agent log
-    const logData5 = {
-      location: "conversations-repository.ts:162",
-      message: "updateTitle database response",
-      data: {
-        conversationId,
-        hasError: !!error,
-        errorMessage: error?.message,
-        errorCode: error?.code,
-        errorDetails: error?.details,
-        updatedRows: data?.length,
-        updatedTitle: data?.[0]?.title,
-      },
-      timestamp: Date.now(),
-      sessionId: "debug-session",
-      runId: "run1",
-      hypothesisId: "F",
-    };
-    console.log("[DEBUG]", JSON.stringify(logData5));
-    await writeDebugLog(logData5);
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(logData5),
-    }).catch(() => {});
-    // #endregion
+      .eq("id", conversationId);
 
     if (error) {
-      // #region agent log
-      fetch(
-        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "conversations-repository.ts:167",
-            message: "updateTitle ERROR - throwing DatabaseError",
-            data: {
-              conversationId,
-              title,
-              errorMessage: error.message,
-              errorCode: error.code,
-              errorDetails: error.details,
-              errorHint: error.hint,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "F",
-          }),
-        }
-      ).catch(() => {});
-      // #endregion
       throw new DatabaseError(
         `Failed to update conversation title: ${error.message}`,
         error
       );
-    }
-
-    // Verify the update actually worked
-    if (!data || data.length === 0) {
-      // #region agent log
-      fetch(
-        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "conversations-repository.ts:185",
-            message: "updateTitle WARNING - no rows updated",
-            data: {
-              conversationId,
-              title,
-              dataLength: data?.length,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "F",
-          }),
-        }
-      ).catch(() => {});
-      // #endregion
     }
   }
 
@@ -286,107 +137,22 @@ export class ConversationsRepository {
    * Check if a conversation has any user messages
    */
   async hasUserMessages(conversationId: string): Promise<boolean> {
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "conversations-repository.ts:271",
-        message: "hasUserMessages called",
-        data: { conversationId },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "I",
-      }),
-    }).catch(() => {});
-    // #endregion
     const supabase = createSupabaseClient();
 
-    const { count, error, data } = await supabase
+    const { count, error } = await supabase
       .from("messages")
       .select("*", { count: "exact", head: true })
       .eq("conversation_id", conversationId)
       .eq("role", "user");
 
-    // #region agent log
-    const logData4 = {
-      location: "conversations-repository.ts:280",
-      message: "hasUserMessages query result",
-      data: {
-        conversationId,
-        count,
-        countValue: count ?? 0,
-        hasError: !!error,
-        errorMessage: error?.message,
-        errorCode: error?.code,
-        hasUserMessages: (count ?? 0) > 0,
-      },
-      timestamp: Date.now(),
-      sessionId: "debug-session",
-      runId: "run1",
-      hypothesisId: "I",
-    };
-    console.log("[DEBUG]", JSON.stringify(logData4));
-    await writeDebugLog(logData4);
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(logData4),
-    }).catch(() => {});
-    // #endregion
-
     if (error) {
-      // #region agent log
-      fetch(
-        "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "conversations-repository.ts:300",
-            message: "hasUserMessages ERROR",
-            data: {
-              conversationId,
-              errorMessage: error.message,
-              errorCode: error.code,
-              errorDetails: error.details,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "I",
-          }),
-        }
-      ).catch(() => {});
-      // #endregion
       throw new DatabaseError(
         `Failed to check messages: ${error.message}`,
         error
       );
     }
 
-    const result = (count ?? 0) > 0;
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "conversations-repository.ts:320",
-        message: "hasUserMessages returning",
-        data: {
-          conversationId,
-          result,
-          count,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "I",
-      }),
-    }).catch(() => {});
-    // #endregion
-    return result;
+    return (count ?? 0) > 0;
   }
 
   /**

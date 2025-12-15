@@ -20,20 +20,6 @@ import { DEFAULT_CHAT_MODEL } from "@/lib/constants/ai-config";
 import { MIN_MESSAGES_FOR_PROFILE } from "@/lib/constants/conversation-config";
 import { ChatRequest, InputMessage } from "@/lib/types";
 import { ValidationError } from "@/lib/errors/app-errors";
-import { appendFile, mkdir } from "fs/promises";
-import { join, dirname } from "path";
-
-// Helper to write debug logs to file
-async function writeDebugLog(data: any) {
-  try {
-    const logPath = join(process.cwd(), ".cursor", "debug.log");
-    const logDir = dirname(logPath);
-    await mkdir(logDir, { recursive: true });
-    await appendFile(logPath, JSON.stringify(data) + "\n");
-  } catch (e) {
-    console.error("[DEBUG LOG ERROR]", e);
-  }
-}
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -42,28 +28,6 @@ export async function POST(req: Request) {
   try {
     // Validate request
     const body = await req.json();
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "chat/route.ts:27",
-        message: "POST /api/chat - request body received",
-        data: {
-          hasTitle: !!body.title,
-          titleValue: body.title,
-          titleType: typeof body.title,
-          hasMessages: !!body.messages,
-          messagesLength: body.messages?.length,
-          hasConversationId: !!body.conversationId,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "E",
-      }),
-    }).catch(() => {});
-    // #endregion
     let validatedRequest: ChatRequest;
     try {
       validatedRequest = validateChatRequest(body);
@@ -72,73 +36,10 @@ export async function POST(req: Request) {
     }
 
     const { messages, conversationId } = validatedRequest;
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "chat/route.ts:38",
-        message: "After validation - extracted values",
-        data: {
-          conversationId,
-          messagesLength: messages?.length,
-          firstUserMessage: messages?.find((m) => m.role === "user"),
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "E",
-      }),
-    }).catch(() => {});
-    // #endregion
 
     // Get authenticated user (optional)
-    let authenticatedUser;
-    let userId: string | null = null;
-    try {
-      authenticatedUser = await getAuthenticatedUser();
-      userId = authenticatedUser?.userId ?? null;
-    } catch (error) {
-      const authErrorLog = {
-        location: "chat/route.ts:83",
-        message: "ERROR getting authenticated user",
-        data: {
-          error: error instanceof Error ? error.message : String(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "K",
-      };
-      console.error("[DEBUG ERROR]", JSON.stringify(authErrorLog));
-      await writeDebugLog(authErrorLog);
-    }
-    // #region agent log
-    const logDataChat1 = {
-      location: "chat/route.ts:97",
-      message: "User authentication check",
-      data: {
-        hasAuthenticatedUser: !!authenticatedUser,
-        authenticatedUserData: authenticatedUser
-          ? {
-              userId: authenticatedUser.userId,
-              kindeId: authenticatedUser.kindeId,
-              email: authenticatedUser.email,
-            }
-          : null,
-        userId,
-        isNull: userId === null,
-        userIdType: typeof userId,
-      },
-      timestamp: Date.now(),
-      sessionId: "debug-session",
-      runId: "run1",
-      hypothesisId: "K",
-    };
-    console.log("[DEBUG]", JSON.stringify(logDataChat1));
-    await writeDebugLog(logDataChat1);
-    // #endregion
+    const authenticatedUser = await getAuthenticatedUser();
+    const userId = authenticatedUser?.userId ?? null;
 
     // Resolve or create conversation
     const conversationService = new ConversationService();
@@ -216,28 +117,6 @@ export async function POST(req: Request) {
 
     // Store messages after streaming completes (only for authenticated users)
     const lastUserMessage = getLastUserMessage(messages);
-    // #region agent log
-    const logDataChat2 = {
-      location: "chat/route.ts:215",
-      message: "About to store messages - check",
-      data: {
-        userId,
-        hasUserId: !!userId,
-        userIdValue: userId,
-        finalConversationId,
-        hasLastUserMessage: !!lastUserMessage,
-        willStoreMessages: !!userId,
-        resultTextType: typeof result.text,
-        resultTextIsPromise: result.text instanceof Promise,
-      },
-      timestamp: Date.now(),
-      sessionId: "debug-session",
-      runId: "run1",
-      hypothesisId: "K",
-    };
-    console.log("[DEBUG]", JSON.stringify(logDataChat2));
-    await writeDebugLog(logDataChat2);
-    // #endregion
 
     // Store user message immediately if we have userId
     // This ensures the message is stored even if the stream promise fails
@@ -253,270 +132,50 @@ export async function POST(req: Request) {
             assistantContent: "", // Empty for now, will be updated when stream completes
             userId,
           });
-          const logUserStored = {
-            location: "chat/route.ts:242",
-            message: "User message stored immediately",
-            data: {
-              conversationId: finalConversationId,
-              userId,
-              userContent,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "K",
-          };
-          console.log("[DEBUG]", JSON.stringify(logUserStored));
-          await writeDebugLog(logUserStored);
         }
       } catch (error) {
-        const logUserError = {
-          location: "chat/route.ts:260",
-          message: "ERROR storing user message immediately",
-          data: {
-            conversationId: finalConversationId,
-            userId,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-          runId: "run1",
-          hypothesisId: "K",
-        };
-        console.error("[DEBUG ERROR]", JSON.stringify(logUserError));
-        await writeDebugLog(logUserError);
+        console.error("Error storing user message:", error);
       }
     }
 
-    // Always attempt to store messages - let MessageService handle userId check
-    // This ensures we can debug why messages aren't being stored
-    // Add logging to verify the promise is being set up
-    const storePromise = result.text
-      .then(async (fullText) => {
-        // Re-fetch authenticated user inside the promise to ensure we have userId
-        // This handles cases where authentication state might have changed
-        let currentUserId = userId;
-        if (!currentUserId) {
+    // Store assistant message when stream completes
+    if (userId) {
+      result.text
+        .then(async (fullText) => {
+          // Re-fetch authenticated user inside the promise to ensure we have userId
+          // This handles cases where authentication state might have changed
+          let currentUserId = userId;
+          if (!currentUserId) {
+            try {
+              const authUser = await getAuthenticatedUser();
+              currentUserId = authUser?.userId ?? null;
+            } catch (error) {
+              console.error("Error re-fetching user in promise:", error);
+            }
+          }
+
+          // If still no userId, skip
+          if (!currentUserId) {
+            return;
+          }
+
           try {
-            const authUser = await getAuthenticatedUser();
-            currentUserId = authUser?.userId ?? null;
+            const messageService = new MessageService();
+            // Only store assistant message here since user message was already stored above
+            await messageService.storeMessages({
+              conversationId: finalConversationId,
+              userMessage: undefined, // Already stored above
+              assistantContent: fullText,
+              userId: currentUserId, // Use the re-fetched userId
+            });
           } catch (error) {
-            console.error("[DEBUG] Error re-fetching user in promise:", error);
+            console.error("Error storing messages:", error);
           }
-        }
-
-        // #region agent log
-        const logDataPromiseResolved = {
-          location: "chat/route.ts:247",
-          message: "Stream text promise resolved",
-          data: {
-            conversationId: finalConversationId,
-            originalUserId: userId,
-            currentUserId,
-            fullTextLength: fullText?.length,
-            hasFullText: !!fullText,
-            userIdChanged: userId !== currentUserId,
-          },
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-          runId: "run1",
-          hypothesisId: "K",
-        };
-        console.log("[DEBUG]", JSON.stringify(logDataPromiseResolved));
-        await writeDebugLog(logDataPromiseResolved);
-        // #endregion
-
-        // If still no userId, log and skip
-        if (!currentUserId) {
-          const logNoUserId = {
-            location: "chat/route.ts:270",
-            message: "Skipping message storage - no userId available",
-            data: {
-              conversationId: finalConversationId,
-              originalUserId: userId,
-              currentUserId,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "K",
-          };
-          console.error("[DEBUG ERROR]", JSON.stringify(logNoUserId));
-          await writeDebugLog(logNoUserId);
-          return;
-        }
-
-        try {
-          // #region agent log
-          const logDataChat3 = {
-            location: "chat/route.ts:180",
-            message: "About to store messages",
-            data: {
-              conversationId: finalConversationId,
-              userId,
-              hasUserMessage: !!lastUserMessage,
-              assistantContentLength: fullText?.length,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "F",
-          };
-          console.log("[DEBUG]", JSON.stringify(logDataChat3));
-          await writeDebugLog(logDataChat3);
-          fetch(
-            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(logDataChat3),
-            }
-          ).catch(() => {});
-          // #endregion
-          const messageService = new MessageService();
-          // #region agent log
-          const logDataBeforeStore = {
-            location: "chat/route.ts:295",
-            message: "Calling storeMessages",
-            data: {
-              conversationId: finalConversationId,
-              userId: currentUserId,
-              userIdType: typeof currentUserId,
-              hasUserMessage: !!lastUserMessage,
-              assistantContentLength: fullText?.length,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "K",
-          };
-          console.log("[DEBUG]", JSON.stringify(logDataBeforeStore));
-          await writeDebugLog(logDataBeforeStore);
-          // #endregion
-          // Only store assistant message here since user message was already stored above
-          await messageService.storeMessages({
-            conversationId: finalConversationId,
-            userMessage: undefined, // Already stored above
-            assistantContent: fullText,
-            userId: currentUserId, // Use the re-fetched userId
-          });
-          // #region agent log
-          const logDataAfterStore = {
-            location: "chat/route.ts:318",
-            message: "storeMessages completed",
-            data: {
-              conversationId: finalConversationId,
-              userId: currentUserId,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "K",
-          };
-          console.log("[DEBUG]", JSON.stringify(logDataAfterStore));
-          await writeDebugLog(logDataAfterStore);
-          // #endregion
-          // #region agent log
-          fetch(
-            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                location: "chat/route.ts:178",
-                message: "storeMessages completed successfully",
-                data: {
-                  conversationId: finalConversationId,
-                  userId,
-                },
-                timestamp: Date.now(),
-                sessionId: "debug-session",
-                runId: "run1",
-                hypothesisId: "F",
-              }),
-            }
-          ).catch(() => {});
-          // #endregion
-        } catch (error) {
-          // #region agent log
-          const logDataError = {
-            location: "chat/route.ts:355",
-            message: "ERROR storing messages",
-            data: {
-              conversationId: finalConversationId,
-              userId: currentUserId,
-              errorMessage:
-                error instanceof Error ? error.message : String(error),
-              errorStack: error instanceof Error ? error.stack : undefined,
-              errorName: error instanceof Error ? error.name : undefined,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "K",
-          };
-          console.error("[DEBUG ERROR]", JSON.stringify(logDataError));
-          await writeDebugLog(logDataError);
-          fetch(
-            "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(logDataError),
-            }
-          ).catch(() => {});
-          // #endregion
-          console.error("Error storing messages:", error);
-        }
-      })
-      .catch(async (error) => {
-        // #region agent log
-        const logDataStreamError = {
-          location: "chat/route.ts:365",
-          message: "ERROR getting stream text",
-          data: {
-            conversationId: finalConversationId,
-            userId,
-            errorMessage:
-              error instanceof Error ? error.message : String(error),
-            errorStack: error instanceof Error ? error.stack : undefined,
-          },
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-          runId: "run1",
-          hypothesisId: "K",
-        };
-        console.error("[DEBUG ERROR]", JSON.stringify(logDataStreamError));
-        await writeDebugLog(logDataStreamError);
-        fetch(
-          "http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(logDataStreamError),
-          }
-        ).catch(() => {});
-        // #endregion
-        console.error("Error getting stream text:", error);
-      });
-
-    // Log that we've set up the promise
-    const logDataPromiseSetup = {
-      location: "chat/route.ts:400",
-      message: "Message storage promise set up",
-      data: {
-        conversationId: finalConversationId,
-        userId,
-        promiseType: typeof storePromise,
-        promiseIsPromise: storePromise instanceof Promise,
-      },
-      timestamp: Date.now(),
-      sessionId: "debug-session",
-      runId: "run1",
-      hypothesisId: "K",
-    };
-    console.log("[DEBUG]", JSON.stringify(logDataPromiseSetup));
-    await writeDebugLog(logDataPromiseSetup);
+        })
+        .catch((error) => {
+          console.error("Error getting stream text:", error);
+        });
+    }
 
     // Add conversationId to response headers so frontend can update URL
     const response = result.toUIMessageStreamResponse();

@@ -16,52 +16,14 @@ import {
 export function extractMessageContent(
   message: InputMessage | { content?: string; parts?: MessagePart[] }
 ): string {
-  // #region agent log
-  fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      location: "message-utils.ts:16",
-      message: "extractMessageContent called",
-      data: {
-        hasContent: !!message.content,
-        contentType: typeof message.content,
-        hasParts: !!message.parts,
-        partsLength: message.parts?.length,
-      },
-      timestamp: Date.now(),
-      sessionId: "debug-session",
-      runId: "run1",
-      hypothesisId: "C",
-    }),
-  }).catch(() => {});
-  // #endregion
   // If content is directly a string, return it
   if (message.content && typeof message.content === "string") {
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "message-utils.ts:20",
-        message: "Extracted from content string",
-        data: {
-          content: message.content,
-          contentLength: message.content.length,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "C",
-      }),
-    }).catch(() => {});
-    // #endregion
     return message.content;
   }
 
   // If message has parts array, extract text from parts
   if (message.parts && Array.isArray(message.parts)) {
-    const extracted = message.parts
+    return message.parts
       .map((part: MessagePart) => {
         if (part.type === "text" && part.text) {
           return part.text;
@@ -69,43 +31,8 @@ export function extractMessageContent(
         return "";
       })
       .join("");
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "message-utils.ts:27",
-        message: "Extracted from parts",
-        data: {
-          extracted,
-          extractedLength: extracted.length,
-          partsCount: message.parts.length,
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "C",
-      }),
-    }).catch(() => {});
-    // #endregion
-    return extracted;
   }
 
-  // #region agent log
-  fetch("http://127.0.0.1:7242/ingest/10e0db4e-6c5c-4a4b-b4df-391e1068d6a0", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      location: "message-utils.ts:36",
-      message: "extractMessageContent returning empty string",
-      data: { hasContent: !!message.content, hasParts: !!message.parts },
-      timestamp: Date.now(),
-      sessionId: "debug-session",
-      runId: "run1",
-      hypothesisId: "C",
-    }),
-  }).catch(() => {});
-  // #endregion
   return "";
 }
 
