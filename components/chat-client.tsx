@@ -153,60 +153,6 @@ export function ChatClient() {
     },
   } as Parameters<typeof useChat>[0]);
 
-  // Wrap sendMessage to intercept and modify the request
-  // Since useChat's custom fetch isn't being called, we'll patch fetch globally for this component
-  useEffect(() => {
-    const originalFetch = window.fetch;
-    const patchedFetch = async (
-      input: RequestInfo | URL,
-      init?: RequestInit
-    ) => {
-      // Only intercept POST requests to /api/chat
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-          ? input.toString()
-          : input.url;
-      if (init?.method === "POST" && url.includes("/api/chat")) {
-        // Get latest conversationId
-        const currentId =
-          searchParamsRef.current.get("conversationId") ||
-          conversationIdRef.current ||
-          conversationId;
-
-        if (init?.body) {
-          try {
-            let bodyStr: string;
-            if (typeof init.body === "string") {
-              bodyStr = init.body;
-            } else {
-              bodyStr = await new Response(init.body as BodyInit).text();
-            }
-
-            const bodyObj = JSON.parse(bodyStr);
-            bodyObj.conversationId = currentId || undefined;
-            init.body = JSON.stringify(bodyObj);
-          } catch (error) {
-            console.error("Error modifying body in patched fetch:", error);
-          }
-        } else {
-          init = init || {};
-          init.body = JSON.stringify({
-            conversationId: currentId || undefined,
-          });
-        }
-      }
-      return originalFetch(input, init);
-    };
-
-    window.fetch = patchedFetch;
-
-    return () => {
-      window.fetch = originalFetch;
-    };
-  }, [conversationId]);
-
   // Wrap sendMessage to create conversationId before first message if needed
   const sendMessage = useCallback(
     async (message: Parameters<typeof originalSendMessage>[0]) => {
