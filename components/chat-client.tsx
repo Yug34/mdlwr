@@ -45,7 +45,7 @@ export function ChatClient() {
     useState(false);
   const [hasShownDialog, setHasShownDialog] = useState(false);
 
-  // Use a ref to always have the latest conversationId in the body function
+  // Use a ref to always have the latest conversationId for callbacks
   const conversationIdRef = useRef<string | null>(conversationId);
 
   // Update ref whenever conversationId changes
@@ -56,58 +56,8 @@ export function ChatClient() {
   // Sync conversationId with URL params
   useEffect(() => {
     setConversationId(urlConversationId);
-    // Also update ref immediately when URL changes
     conversationIdRef.current = urlConversationId;
   }, [urlConversationId]);
-
-  // Custom fetch to intercept and modify the request body
-  // Note: We don't include searchParams in dependencies to avoid recreating the function
-  // Instead, we'll read from window.location or use a ref
-  const searchParamsRef = useRef(searchParams);
-  useEffect(() => {
-    searchParamsRef.current = searchParams;
-  }, [searchParams]);
-
-  const customFetch = useCallback(
-    async (url: string, options: RequestInit = {}) => {
-      // Only intercept POST requests to /api/chat
-      if (options.method === "POST" && url.includes("/api/chat")) {
-        // Always get the latest conversationId from URL params first, then fall back to ref/state
-        // Use ref to get latest searchParams without recreating the function
-        const urlId = searchParamsRef.current.get("conversationId");
-        const currentId = urlId || conversationIdRef.current || conversationId;
-
-        // If there's a body, parse it, add conversationId, and stringify it back
-        if (options.body) {
-          try {
-            let bodyStr: string;
-
-            if (typeof options.body === "string") {
-              bodyStr = options.body;
-            } else {
-              // For other types (ReadableStream, Blob, etc.), read as text
-              bodyStr = await new Response(options.body as BodyInit).text();
-            }
-
-            const bodyObj = JSON.parse(bodyStr);
-            bodyObj.conversationId = currentId || undefined;
-            options.body = JSON.stringify(bodyObj);
-          } catch (error) {
-            console.error("Error modifying body:", error);
-          }
-        } else {
-          // If no body, create one with conversationId
-          options.body = JSON.stringify({
-            conversationId: currentId || undefined,
-          });
-        }
-      }
-
-      // Call the original fetch
-      return fetch(url, options);
-    },
-    [conversationId]
-  );
 
   const {
     messages,
@@ -116,7 +66,6 @@ export function ChatClient() {
     setMessages,
   } = useChat({
     api: "/api/chat",
-    fetch: customFetch,
     initialMessages: [],
     onResponse: (response: Response) => {
       // Capture conversationId from response headers and update URL if needed
@@ -163,14 +112,13 @@ export function ChatClient() {
     },
   } as Parameters<typeof useChat>[0]);
 
-  // Wrap sendMessage - conversation is now created by /api/chat which also sets title
+  // Wrap sendMessage to pass conversationId in the request body
   const sendMessage = useCallback(
     async (message: Parameters<typeof originalSendMessage>[0]) => {
-      // Call original sendMessage - the backend will create conversation if needed
-      // and return the conversationId in the response headers (handled in onResponse)
-      return originalSendMessage(
-        message as Parameters<typeof originalSendMessage>[0]
-      );
+      // Pass conversationId directly in the body - no custom fetch needed
+      return originalSendMessage(message, {
+        body: { conversationId: conversationIdRef.current || undefined },
+      });
     },
     [originalSendMessage]
   );
