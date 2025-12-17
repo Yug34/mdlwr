@@ -1,8 +1,9 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useConversationStore } from "@/stores/conversation-store";
 
 import {
   Conversation,
@@ -36,28 +37,24 @@ export function ChatClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const urlConversationId = searchParams.get("conversationId");
-  const [conversationId, setConversationId] = useState<string | null>(
-    urlConversationId
-  );
+  const {
+    currentConversationId,
+    setCurrentConversation,
+    addConversation,
+    updateConversation,
+  } = useConversationStore();
   const [randomSuggestions, setRandomSuggestions] = useState<string[]>([]);
   const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false);
   const [showUnauthenticatedDialog, setShowUnauthenticatedDialog] =
     useState(false);
   const [hasShownDialog, setHasShownDialog] = useState(false);
 
-  // Use a ref to always have the latest conversationId for callbacks
-  const conversationIdRef = useRef<string | null>(conversationId);
-
-  // Update ref whenever conversationId changes
+  // Sync store with URL params (URL is source of truth for navigation)
   useEffect(() => {
-    conversationIdRef.current = conversationId;
-  }, [conversationId]);
-
-  // Sync conversationId with URL params
-  useEffect(() => {
-    setConversationId(urlConversationId);
-    conversationIdRef.current = urlConversationId;
-  }, [urlConversationId]);
+    if (urlConversationId !== currentConversationId) {
+      setCurrentConversation(urlConversationId);
+    }
+  }, [urlConversationId, currentConversationId, setCurrentConversation]);
 
   const {
     messages,
@@ -80,34 +77,42 @@ export function ChatClient() {
       }
 
       if (newConversationId) {
-        // Update ref immediately so next message uses the correct conversationId
-        conversationIdRef.current = newConversationId;
-        // Update state and URL if different
-        if (newConversationId !== conversationId) {
-          setConversationId(newConversationId);
+        const storeState = useConversationStore.getState();
+        // Update store and URL if different
+        if (newConversationId !== storeState.currentConversationId) {
+          storeState.setCurrentConversation(newConversationId);
           router.replace(`/?conversationId=${newConversationId}`);
-          // Dispatch event to notify ConversationList to refresh (only for authenticated users)
+          // Optimistically add to conversation list (only for authenticated users)
           if (isAuthenticated) {
-            window.dispatchEvent(
-              new CustomEvent("conversationCreated", {
-                detail: { conversationId: newConversationId },
-              })
-            );
+            storeState.addConversation({
+              id: newConversationId,
+              title: null, // Title will be set by the server, shows loading spinner
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
           }
         }
       }
     },
-    onFinish: () => {
-      // After streaming completes, dispatch event to refresh sidebar
-      // Note: Title is now set during conversation creation, so this is mainly
-      // for updating the updated_at timestamp in the sidebar
-      const currentConversationId = conversationIdRef.current;
-      if (currentConversationId) {
-        window.dispatchEvent(
-          new CustomEvent("conversationUpdated", {
-            detail: { conversationId: currentConversationId },
-          })
-        );
+    onFinish: async () => {
+      // After streaming completes, fetch the updated conversation to get the title
+      const storeState = useConversationStore.getState();
+      const conversationId = storeState.currentConversationId;
+      if (conversationId) {
+        try {
+          const response = await fetch(`/api/conversations/${conversationId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.conversation) {
+              storeState.updateConversation(conversationId, {
+                title: data.conversation.title,
+                updated_at: data.conversation.updated_at,
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching conversation:", error);
+        }
       }
     },
   } as Parameters<typeof useChat>[0]);
@@ -115,9 +120,11 @@ export function ChatClient() {
   // Wrap sendMessage to pass conversationId in the request body
   const sendMessage = useCallback(
     async (message: Parameters<typeof originalSendMessage>[0]) => {
-      // Pass conversationId directly in the body - no custom fetch needed
+      // Get latest conversationId from store
+      const conversationId =
+        useConversationStore.getState().currentConversationId;
       return originalSendMessage(message, {
-        body: { conversationId: conversationIdRef.current || undefined },
+        body: { conversationId: conversationId || undefined },
       });
     },
     [originalSendMessage]
@@ -132,18 +139,18 @@ export function ChatClient() {
     // Reset loaded flag when conversationId changes
     setInitialMessagesLoaded(false);
     // Reset messages when conversationId is cleared (new chat)
-    if (!conversationId) {
+    if (!currentConversationId) {
       setMessages([]);
     }
-  }, [conversationId, setMessages]);
+  }, [currentConversationId, setMessages]);
 
   useEffect(() => {
     // Load messages when conversationId changes
     async function loadMessages() {
-      if (conversationId && !initialMessagesLoaded) {
+      if (currentConversationId && !initialMessagesLoaded) {
         try {
           const response = await fetch(
-            `/api/conversations/${conversationId}/messages`
+            `/api/conversations/${currentConversationId}/messages`
           );
           if (response.ok) {
             const data = await response.json();
@@ -170,7 +177,7 @@ export function ChatClient() {
         } finally {
           setInitialMessagesLoaded(true);
         }
-      } else if (!conversationId) {
+      } else if (!currentConversationId) {
         // Reset messages when no conversation is selected
         setMessages([]);
         setInitialMessagesLoaded(false);
@@ -178,7 +185,7 @@ export function ChatClient() {
     }
 
     loadMessages();
-  }, [conversationId, initialMessagesLoaded, setMessages]);
+  }, [currentConversationId, initialMessagesLoaded, setMessages]);
 
   const isLoading = status === "streaming" || status === "submitted";
 

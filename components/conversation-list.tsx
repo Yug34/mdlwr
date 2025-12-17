@@ -1,43 +1,29 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect } from "react";
 import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { MessageSquare, Loader2 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { capitalizeFirstLetter } from "@/lib/utils";
-
-interface Conversation {
-  id: string;
-  title: string | null;
-  created_at: string;
-  updated_at: string;
-}
+import { useConversationStore } from "@/stores/conversation-store";
 
 export function ConversationList() {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const currentConversationId = searchParams.get("conversationId");
 
-  const fetchConversations = useCallback(async () => {
-    try {
-      const response = await fetch("/api/conversations");
-      if (response.ok) {
-        const data = await response.json();
-        setConversations(data.conversations || []);
-      } else {
-        console.error("Failed to fetch conversations");
-      }
-    } catch (error) {
-      console.error("Error fetching conversations:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const {
+    currentConversationId,
+    setCurrentConversation,
+    conversations,
+    isLoading,
+    hasFetched,
+    fetchConversations,
+  } = useConversationStore();
 
   useEffect(() => {
-    fetchConversations();
+    // Initial fetch
+    if (!hasFetched) {
+      fetchConversations();
+    }
 
     // Refresh conversations when window regains focus
     const handleFocus = () => {
@@ -45,40 +31,17 @@ export function ConversationList() {
     };
     window.addEventListener("focus", handleFocus);
 
-    // Refresh conversations when a new conversation is created
-    const handleConversationCreated = () => {
-      fetchConversations();
-    };
-    window.addEventListener("conversationCreated", handleConversationCreated);
-
-    // Refresh conversations when a conversation is updated
-    // Title is now set during conversation creation, so immediate refresh should suffice
-    const handleConversationUpdated = () => {
-      fetchConversations();
-    };
-    window.addEventListener("conversationUpdated", handleConversationUpdated);
-
     return () => {
       window.removeEventListener("focus", handleFocus);
-      window.removeEventListener(
-        "conversationCreated",
-        handleConversationCreated
-      );
-      window.removeEventListener(
-        "conversationUpdated",
-        handleConversationUpdated
-      );
     };
-  }, [fetchConversations]);
+  }, [hasFetched, fetchConversations]);
 
   const handleConversationClick = (conversationId: string) => {
-    // Navigate to the conversation
-    // For now, we'll just reload the page with the conversation ID
-    // You can enhance this to load the conversation in the chat client
+    setCurrentConversation(conversationId);
     router.push(`/?conversationId=${conversationId}`);
   };
 
-  if (loading) {
+  if (isLoading && !hasFetched) {
     return (
       <SidebarMenuItem>
         <SidebarMenuButton disabled>
