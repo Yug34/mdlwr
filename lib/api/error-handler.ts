@@ -7,6 +7,7 @@ import {
   AppError,
   AuthenticationError,
   AuthorizationError,
+  TimeoutError,
 } from "@/lib/errors/app-errors";
 import { ApiErrorResponse } from "@/lib/types";
 
@@ -16,14 +17,23 @@ import { ApiErrorResponse } from "@/lib/types";
 export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   // Handle known application errors
   if (error instanceof AppError) {
+    // Use user-friendly message for timeout errors
+    const message =
+      error instanceof TimeoutError
+        ? "The request took too long to complete. Please try again."
+        : error.message;
+
     return NextResponse.json(
       {
-        error: error.message,
+        error: message,
         ...(error instanceof AuthenticationError && {
           details: "Authentication required",
         }),
         ...(error instanceof AuthorizationError && {
           details: "Access denied",
+        }),
+        ...(error instanceof TimeoutError && {
+          details: "Request timeout",
         }),
       },
       { status: error.statusCode }
@@ -58,16 +68,28 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
  */
 export function createErrorResponse(
   error: unknown,
-  statusCode: number = 500
+  defaultStatusCode: number = 500
 ): Response {
-  const message =
-    error instanceof Error ? error.message : "Internal server error";
+  // Use AppError's statusCode if available
+  const statusCode =
+    error instanceof AppError ? error.statusCode : defaultStatusCode;
+
+  // Use user-friendly message for timeout errors
+  let message: string;
+  if (error instanceof TimeoutError) {
+    message = "The request took too long to complete. Please try again.";
+  } else if (error instanceof Error) {
+    message = error.message;
+  } else {
+    message = "Internal server error";
+  }
+
   const details =
     error instanceof AppError
       ? undefined
       : process.env.NODE_ENV === "development"
-      ? String(error)
-      : undefined;
+        ? String(error)
+        : undefined;
 
   return new Response(
     JSON.stringify({

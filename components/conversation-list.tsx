@@ -51,21 +51,10 @@ export function ConversationList() {
     };
     window.addEventListener("conversationCreated", handleConversationCreated);
 
-    // Refresh conversations when a conversation is updated (e.g., title set)
-    // Use retry mechanism since title update happens asynchronously on server
+    // Refresh conversations when a conversation is updated
+    // Title is now set during conversation creation, so immediate refresh should suffice
     const handleConversationUpdated = () => {
-      // Immediate refresh
       fetchConversations();
-
-      // Retry a few times with delays to catch the title update
-      // The title is set asynchronously after messages are stored
-      const retryDelays = [500, 1000, 2000]; // ms
-
-      retryDelays.forEach((delay) => {
-        setTimeout(() => {
-          fetchConversations();
-        }, delay);
-      });
     };
     window.addEventListener("conversationUpdated", handleConversationUpdated);
 
@@ -100,15 +89,7 @@ export function ConversationList() {
   }
 
   if (conversations.length === 0) {
-    return (
-      <SidebarMenuItem>
-        <SidebarMenuButton disabled>
-          <span className="text-sm text-muted-foreground">
-            No conversations yet
-          </span>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    );
+    return null;
   }
 
   return (

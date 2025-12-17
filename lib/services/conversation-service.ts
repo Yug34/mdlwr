@@ -1,7 +1,3 @@
-/**
- * Service for conversation resolution and management
- */
-
 import { randomUUID } from "crypto";
 import { ConversationsRepository } from "@/lib/repositories/conversations-repository";
 import { MessagesRepository } from "@/lib/repositories/messages-repository";
@@ -11,11 +7,14 @@ import {
   AuthorizationError,
   DatabaseError,
 } from "@/lib/errors/app-errors";
+import { MAX_CONVERSATION_TITLE_LENGTH } from "@/lib/constants/conversation-config";
+import { withTimeout, TIMEOUT_CONFIG } from "@/lib/utils/timeout";
 
 export interface ResolveConversationParams {
   userId: string | null;
   conversationId?: string | null;
   messages?: InputMessage[];
+  firstMessageContent?: string;
 }
 
 export class ConversationService {
@@ -28,11 +27,12 @@ export class ConversationService {
    * Resolve or create a conversation ID
    * Handles all edge cases for conversation resolution
    * For unauthenticated users (userId is null), returns session-only conversation IDs
+   * When creating a new conversation, sets the title from firstMessageContent if provided
    */
   async resolveOrCreateConversation(
     params: ResolveConversationParams
   ): Promise<string> {
-    const { userId, conversationId, messages } = params;
+    const { userId, conversationId, messages, firstMessageContent } = params;
 
     // For unauthenticated users, use session-only conversation IDs
     if (userId === null) {
@@ -47,7 +47,11 @@ export class ConversationService {
     // Authenticated user flow
     // If conversationId is provided, verify it and return it (or create new if invalid)
     if (conversationId && conversationId.trim() !== "") {
-      return this.verifyOrCreateConversation(userId, conversationId);
+      return this.verifyOrCreateConversation(
+        userId,
+        conversationId,
+        firstMessageContent
+      );
     }
 
     // No conversationId provided - try to find one from existing messages
@@ -58,11 +62,14 @@ export class ConversationService {
     if (foundConversationId) {
       // Verify the found conversation belongs to the user
       try {
-        const conversation =
-          await this.conversationsRepo.findByIdAndVerifyOwner(
+        const conversation = await withTimeout(
+          this.conversationsRepo.findByIdAndVerifyOwner(
             foundConversationId,
             userId
-          );
+          ),
+          TIMEOUT_CONFIG.DATABASE,
+          "Verify found conversation ownership"
+        );
         return conversation.id;
       } catch (error) {
         // Conversation doesn't exist or doesn't belong to user, create new one
@@ -70,14 +77,14 @@ export class ConversationService {
           error instanceof NotFoundError ||
           error instanceof AuthorizationError
         ) {
-          return this.createConversation(userId);
+          return this.createConversation(userId, firstMessageContent);
         }
         throw error;
       }
     }
 
-    // No existing conversation found, create a new one
-    return this.createConversation(userId);
+    // No existing conversation found, create a new one with title from first message
+    return this.createConversation(userId, firstMessageContent);
   }
 
   /**
@@ -85,12 +92,14 @@ export class ConversationService {
    */
   private async verifyOrCreateConversation(
     userId: string,
-    conversationId: string
+    conversationId: string,
+    firstMessageContent?: string
   ): Promise<string> {
     try {
-      const conversation = await this.conversationsRepo.findByIdAndVerifyOwner(
-        conversationId,
-        userId
+      const conversation = await withTimeout(
+        this.conversationsRepo.findByIdAndVerifyOwner(conversationId, userId),
+        TIMEOUT_CONFIG.DATABASE,
+        "Verify conversation ownership"
       );
       return conversation.id;
     } catch (error) {
@@ -99,7 +108,7 @@ export class ConversationService {
         error instanceof NotFoundError ||
         error instanceof AuthorizationError
       ) {
-        return this.createConversation(userId);
+        return this.createConversation(userId, firstMessageContent);
       }
       throw error;
     }
@@ -125,7 +134,11 @@ export class ConversationService {
     }
 
     try {
-      return await this.messagesRepo.findConversationIdByMessageIds(messageIds);
+      return await withTimeout(
+        this.messagesRepo.findConversationIdByMessageIds(messageIds),
+        TIMEOUT_CONFIG.DATABASE,
+        "Find conversation from messages"
+      );
     } catch (error) {
       // Log but don't fail - we'll just create a new conversation
       console.error("Error finding conversation from messages:", error);
@@ -134,12 +147,34 @@ export class ConversationService {
   }
 
   /**
+   * Generate a title from message content
+   */
+  private generateTitleFromContent(content: string): string {
+    const trimmed = content.trim();
+    if (trimmed.length <= MAX_CONVERSATION_TITLE_LENGTH) {
+      return trimmed;
+    }
+    return trimmed.substring(0, MAX_CONVERSATION_TITLE_LENGTH).trim() + "...";
+  }
+
+  /**
    * Create a new conversation
    * Only called for authenticated users (userId is never null here)
+   * Sets the title from firstMessageContent if provided
    */
-  private async createConversation(userId: string): Promise<string> {
+  private async createConversation(
+    userId: string,
+    firstMessageContent?: string
+  ): Promise<string> {
     try {
-      const conversation = await this.conversationsRepo.create(userId, null);
+      const title = firstMessageContent
+        ? this.generateTitleFromContent(firstMessageContent)
+        : null;
+      const conversation = await withTimeout(
+        this.conversationsRepo.create(userId, title),
+        TIMEOUT_CONFIG.DATABASE,
+        "Create conversation"
+      );
       return conversation.id;
     } catch (error) {
       throw new DatabaseError("Failed to create conversation", error);

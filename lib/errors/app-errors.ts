@@ -43,3 +43,13 @@ export class DatabaseError extends AppError {
     super(message, 500, "DATABASE_ERROR");
   }
 }
+
+export class TimeoutError extends AppError {
+  constructor(
+    operation: string,
+    timeoutMs: number,
+    public readonly originalError?: unknown
+  ) {
+    super(`${operation} timed out after ${timeoutMs}ms`, 504, "TIMEOUT_ERROR");
+  }
+}

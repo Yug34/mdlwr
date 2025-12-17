@@ -121,6 +121,15 @@ export function ChatClient() {
     onResponse: (response: Response) => {
       // Capture conversationId from response headers and update URL if needed
       const newConversationId = response.headers.get("X-Conversation-Id");
+      const isAuthenticated =
+        response.headers.get("X-Authenticated") === "true";
+
+      // Show unauthenticated dialog for first message if not authenticated
+      if (!isAuthenticated && !hasShownDialog && messages.length === 0) {
+        setShowUnauthenticatedDialog(true);
+        setHasShownDialog(true);
+      }
+
       if (newConversationId) {
         // Update ref immediately so next message uses the correct conversationId
         conversationIdRef.current = newConversationId;
@@ -128,22 +137,23 @@ export function ChatClient() {
         if (newConversationId !== conversationId) {
           setConversationId(newConversationId);
           router.replace(`/?conversationId=${newConversationId}`);
-          // Dispatch event to notify ConversationList to refresh
-          window.dispatchEvent(
-            new CustomEvent("conversationCreated", {
-              detail: { conversationId: newConversationId },
-            })
-          );
+          // Dispatch event to notify ConversationList to refresh (only for authenticated users)
+          if (isAuthenticated) {
+            window.dispatchEvent(
+              new CustomEvent("conversationCreated", {
+                detail: { conversationId: newConversationId },
+              })
+            );
+          }
         }
       }
     },
     onFinish: () => {
       // After streaming completes, dispatch event to refresh sidebar
-      // The conversation list will retry fetching to catch the title update
-      // since title is set asynchronously after messages are stored
+      // Note: Title is now set during conversation creation, so this is mainly
+      // for updating the updated_at timestamp in the sidebar
       const currentConversationId = conversationIdRef.current;
       if (currentConversationId) {
-        // Dispatch immediately - the conversation list will handle retries
         window.dispatchEvent(
           new CustomEvent("conversationUpdated", {
             detail: { conversationId: currentConversationId },
@@ -153,70 +163,16 @@ export function ChatClient() {
     },
   } as Parameters<typeof useChat>[0]);
 
-  // Wrap sendMessage to create conversationId before first message if needed
+  // Wrap sendMessage - conversation is now created by /api/chat which also sets title
   const sendMessage = useCallback(
     async (message: Parameters<typeof originalSendMessage>[0]) => {
-      // If no conversationId exists and this is the first message, create one
-      const currentId =
-        urlConversationId || conversationIdRef.current || conversationId;
-      if (!currentId && messages.length === 0) {
-        let newConversationId: string | null = null;
-
-        try {
-          // Try to create a persisted conversation for authenticated users
-          const response = await fetch("/api/conversations", {
-            method: "POST",
-          });
-          if (response.ok) {
-            const data = await response.json();
-            newConversationId = data.conversationId;
-            // Dispatch event to notify ConversationList to refresh
-            window.dispatchEvent(
-              new CustomEvent("conversationCreated", {
-                detail: { conversationId: newConversationId },
-              })
-            );
-          } else if (response.status === 401 || response.status === 403) {
-            // Unauthenticated user - generate session-only conversation ID
-            newConversationId = crypto.randomUUID();
-            // Show dialog on first message if we haven't shown it yet
-            if (!hasShownDialog) {
-              setShowUnauthenticatedDialog(true);
-              setHasShownDialog(true);
-            }
-          }
-        } catch (error) {
-          console.error("Error creating conversation:", error);
-          // For unauthenticated users or other errors, generate session-only ID
-          newConversationId = crypto.randomUUID();
-          // Show dialog on first message if we haven't shown it yet
-          // (This handles network errors that might also indicate unauthenticated state)
-          if (!hasShownDialog && messages.length === 0) {
-            setShowUnauthenticatedDialog(true);
-            setHasShownDialog(true);
-          }
-        }
-
-        // Update ref, state, and URL with the conversation ID (persisted or session-only)
-        if (newConversationId) {
-          conversationIdRef.current = newConversationId;
-          setConversationId(newConversationId);
-          router.replace(`/?conversationId=${newConversationId}`);
-        }
-      }
-
-      // Call original sendMessage - useChat handles the type checking
+      // Call original sendMessage - the backend will create conversation if needed
+      // and return the conversationId in the response headers (handled in onResponse)
       return originalSendMessage(
         message as Parameters<typeof originalSendMessage>[0]
       );
     },
-    [
-      originalSendMessage,
-      urlConversationId,
-      conversationId,
-      messages.length,
-      router,
-    ]
+    [originalSendMessage]
   );
 
   useEffect(() => {

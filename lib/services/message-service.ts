@@ -3,10 +3,9 @@
  */
 
 import { MessagesRepository } from "@/lib/repositories/messages-repository";
-import { ConversationsRepository } from "@/lib/repositories/conversations-repository";
 import { InputMessage, MessagePart } from "@/lib/types";
 import { extractMessageContent } from "@/lib/utils/message-utils";
-import { MAX_CONVERSATION_TITLE_LENGTH } from "@/lib/constants/conversation-config";
+import { withTimeout, TIMEOUT_CONFIG } from "@/lib/utils/timeout";
 
 export interface StoreMessagesParams {
   conversationId: string;
@@ -16,14 +15,11 @@ export interface StoreMessagesParams {
 }
 
 export class MessageService {
-  constructor(
-    private messagesRepo = new MessagesRepository(),
-    private conversationsRepo = new ConversationsRepository()
-  ) {}
+  constructor(private messagesRepo = new MessagesRepository()) {}
 
   /**
    * Store user and assistant messages
-   * Also handles setting conversation title if it's the first user message
+   * Note: Conversation title is set during conversation creation in ConversationService
    * Only stores messages in database for authenticated users (userId is not null)
    */
   async storeMessages(params: StoreMessagesParams): Promise<void> {
@@ -34,96 +30,35 @@ export class MessageService {
       return;
     }
 
-    // Store user message first (if exists)
+    // Store user message (if exists) with timeout
     if (userMessage && userMessage.role === "user") {
       const userContent = extractMessageContent(userMessage);
       if (userContent) {
-        // Check if we need to set conversation title
-        // IMPORTANT: Do this BEFORE storing the message to avoid race conditions
-        try {
-          await this.setConversationTitleIfNeeded(conversationId, userContent);
-        } catch (error) {
-          // Log error but continue - we'll try to set title again after storing message
-          console.error("Error setting conversation title:", error);
-        }
-
-        // Store user message
-        await this.messagesRepo.create(
-          conversationId,
-          "user",
-          userContent,
-          (userMessage.parts || null) as MessagePart[] | null
+        await withTimeout(
+          this.messagesRepo.create(
+            conversationId,
+            "user",
+            userContent,
+            (userMessage.parts || null) as MessagePart[] | null
+          ),
+          TIMEOUT_CONFIG.DATABASE,
+          "Store user message"
         );
-
-        // After storing the message, verify and ensure title is set
-        // This is a fallback in case the previous title setting failed
-        const currentTitle = await this.conversationsRepo.getTitle(
-          conversationId
-        );
-        if (!currentTitle || currentTitle.trim() === "") {
-          // Title is still null/empty, try setting it again
-          const title =
-            userContent.length > MAX_CONVERSATION_TITLE_LENGTH
-              ? userContent.substring(0, MAX_CONVERSATION_TITLE_LENGTH).trim() +
-                "..."
-              : userContent.trim();
-          try {
-            await this.conversationsRepo.updateTitle(conversationId, title);
-          } catch (error) {
-            console.error("Error setting title on retry:", error);
-          }
-        }
       }
     }
 
-    // Store assistant message
+    // Store assistant message with timeout
     if (assistantContent) {
-      await this.messagesRepo.create(
-        conversationId,
-        "assistant",
-        assistantContent,
-        [{ type: "text", text: assistantContent }]
+      await withTimeout(
+        this.messagesRepo.create(
+          conversationId,
+          "assistant",
+          assistantContent,
+          [{ type: "text", text: assistantContent }]
+        ),
+        TIMEOUT_CONFIG.DATABASE,
+        "Store assistant message"
       );
     }
-  }
-
-  /**
-   * Set conversation title if it's the first user message
-   */
-  private async setConversationTitleIfNeeded(
-    conversationId: string,
-    userContent: string
-  ): Promise<void> {
-    // Check if conversation already has a title
-    const existingTitle = await this.conversationsRepo.getTitle(conversationId);
-    if (existingTitle && existingTitle.trim() !== "") {
-      return; // Already has a title
-    }
-
-    // Check if this is the first user message
-    // IMPORTANT: We check this BEFORE storing the current message to ensure
-    // we catch the first message correctly. However, if the check happens
-    // after a previous call already stored a message, we need to handle that.
-    const hasUserMessages = await this.conversationsRepo.hasUserMessages(
-      conversationId
-    );
-
-    // If there are already user messages, don't set the title
-    // UNLESS the title is still null (edge case: title setting failed previously)
-    if (hasUserMessages && existingTitle !== null) {
-      return; // Not the first message and title already exists (even if empty string)
-    }
-
-    // If we get here, either:
-    // 1. No user messages exist yet (first message) - set title
-    // 2. User messages exist but title is still null (retry setting title)
-
-    // Set title to first user message (truncate if needed)
-    const title =
-      userContent.length > MAX_CONVERSATION_TITLE_LENGTH
-        ? userContent.substring(0, MAX_CONVERSATION_TITLE_LENGTH).trim() + "..."
-        : userContent.trim();
-
-    await this.conversationsRepo.updateTitle(conversationId, title);
   }
 }

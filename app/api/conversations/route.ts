@@ -4,16 +4,14 @@ import { handleApiError } from "@/lib/api/error-handler";
 import { ConversationsRepository } from "@/lib/repositories/conversations-repository";
 import { CreateConversationResponse } from "@/lib/types";
 
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    const requestBody = await req.json().catch(() => ({}));
     // Authenticate user
     const { userId } = await requireAuth();
 
     // Create a new conversation
     const conversationsRepo = new ConversationsRepository();
-    const titleToUse = requestBody?.title ?? null;
-    const newConversation = await conversationsRepo.create(userId, titleToUse);
+    const newConversation = await conversationsRepo.create(userId, null);
 
     return NextResponse.json<CreateConversationResponse>({
       conversationId: newConversation.id,

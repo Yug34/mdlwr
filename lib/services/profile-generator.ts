@@ -11,6 +11,10 @@ import {
   RECENT_CONVERSATION_DAYS,
   MAX_RECENT_CONVERSATIONS,
 } from "@/lib/constants/conversation-config";
+import {
+  withTimeout,
+  TIMEOUT_CONFIG,
+} from "@/lib/utils/timeout";
 
 /**
  * Fetch recent conversations for a user
@@ -28,14 +32,20 @@ export async function fetchRecentConversations(
   daysAgo.setDate(daysAgo.getDate() - RECENT_CONVERSATION_DAYS);
   const daysAgoISO = daysAgo.toISOString();
 
-  // First, get recent conversations
-  const { data: conversations, error: convError } = await supabase
+  // First, get recent conversations with timeout
+  const conversationsPromise = supabase
     .from("conversations")
     .select("id, created_at")
     .eq("user_id", userId)
     .gte("created_at", daysAgoISO)
     .order("created_at", { ascending: false })
     .limit(MAX_RECENT_CONVERSATIONS);
+
+  const { data: conversations, error: convError } = await withTimeout(
+    conversationsPromise,
+    TIMEOUT_CONFIG.DATABASE,
+    "Fetch conversations"
+  );
 
   if (convError) {
     console.error("Error fetching conversations:", convError);
@@ -46,11 +56,17 @@ export async function fetchRecentConversations(
   if (conversations && conversations.length > 0) {
     const conversationIds = conversations.map((conv) => conv.id);
 
-    const { data: messages, error: messagesError } = await supabase
+    const messagesPromise = supabase
       .from("messages")
       .select("id, role, content, parts, created_at")
       .in("conversation_id", conversationIds)
       .order("created_at", { ascending: true });
+
+    const { data: messages, error: messagesError } = await withTimeout(
+      messagesPromise,
+      TIMEOUT_CONFIG.DATABASE,
+      "Fetch messages"
+    );
 
     if (messagesError) {
       console.error("Error fetching messages:", messagesError);
@@ -70,11 +86,13 @@ export async function fetchRecentConversations(
  * Generate a personality profile from conversation history using LLM
  * @param messages - Array of messages from conversation history
  * @param openai - OpenAI client instance
+ * @param abortSignal - Optional AbortSignal for cancellation
  * @returns Generated personality profile text
  */
 export async function generatePersonalityProfile(
   messages: ConversationMessage[],
-  openai: ReturnType<typeof createOpenAI>
+  openai: ReturnType<typeof createOpenAI>,
+  abortSignal?: AbortSignal
 ): Promise<string> {
   if (messages.length === 0) {
     return "I don't have enough conversation history yet to create a personality profile. Keep chatting and I'll learn more about you!";
@@ -95,8 +113,8 @@ export async function generatePersonalityProfile(
     })
     .join("\n\n");
 
-  // Generate profile using LLM
-  const result = await generateText({
+  // Generate profile using LLM with timeout
+  const generatePromise = generateText({
     model: openai(DEFAULT_CHAT_MODEL),
     prompt: `Analyze the following conversation history and create a personality profile of the user. 
 Focus on consistent patterns, interests, communication style, preferences, and personality traits that appear across multiple conversations.
@@ -114,7 +132,14 @@ Create a natural, readable personality profile (200-500 words) that describes:
 Write it as if you're describing a friend - natural and conversational, not clinical or bullet-pointed. Format it as a cohesive narrative.
 
 Personality Profile:`,
+    abortSignal,
   });
+
+  const result = await withTimeout(
+    generatePromise,
+    TIMEOUT_CONFIG.OPENAI_API,
+    "Profile generation"
+  );
 
   return result.text;
 }
@@ -123,18 +148,20 @@ Personality Profile:`,
  * Detect if a message is a self-reference query using LLM
  * @param message - The user's message text
  * @param openai - OpenAI client instance
+ * @param abortSignal - Optional AbortSignal for cancellation
  * @returns True if the message is asking about themselves, false otherwise
  */
 export async function isSelfReferenceQuery(
   message: string,
-  openai: ReturnType<typeof createOpenAI>
+  openai: ReturnType<typeof createOpenAI>,
+  abortSignal?: AbortSignal
 ): Promise<boolean> {
   if (!message || message.trim().length === 0) {
     return false;
   }
 
   try {
-    const result = await generateText({
+    const generatePromise = generateText({
       model: openai(CLASSIFICATION_MODEL), // Use cheaper model for classification
       prompt: `Classify if this user message is asking about themselves, their personality, or what the assistant knows about them.
 
@@ -161,13 +188,20 @@ Examples of NOT self-reference (respond "no"):
 
 Classification:`,
       temperature: 0,
+      abortSignal,
     });
+
+    const result = await withTimeout(
+      generatePromise,
+      TIMEOUT_CONFIG.CLASSIFICATION,
+      "Self-reference classification"
+    );
 
     const classification = result.text.toLowerCase().trim();
     return classification.startsWith("yes");
   } catch (error) {
     console.error("Error in self-reference detection:", error);
-    // Fallback to false on error
+    // Fallback to false on error (including timeout)
     return false;
   }
 }

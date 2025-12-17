@@ -15,17 +15,30 @@ import {
   getLastUserMessage,
   extractMessageContent,
 } from "@/lib/utils/message-utils";
+import {
+  sanitizeMessages,
+  logSanitizationWarning,
+} from "@/lib/utils/sanitization";
+import {
+  withTimeout,
+  createTimeoutController,
+  TIMEOUT_CONFIG,
+} from "@/lib/utils/timeout";
 import { validateChatRequest } from "@/lib/validation/schemas";
 import { createErrorResponse } from "@/lib/api/error-handler";
 import { DEFAULT_CHAT_MODEL } from "@/lib/constants/ai-config";
 import { MIN_MESSAGES_FOR_PROFILE } from "@/lib/constants/conversation-config";
 import { ChatRequest, InputMessage } from "@/lib/types";
-import { ValidationError } from "@/lib/errors/app-errors";
+import { ValidationError, TimeoutError } from "@/lib/errors/app-errors";
 
 // Allow streaming responses up to 60 seconds
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  // Create abort controller for request-level timeout handling
+  const { signal: requestSignal, cleanup: cleanupRequestTimeout } =
+    createTimeoutController(TIMEOUT_CONFIG.STREAMING);
+
   try {
     // Validate request
     const body = await req.json();
@@ -36,20 +49,43 @@ export async function POST(req: Request) {
       throw new ValidationError("Invalid request data", error);
     }
 
-    const { messages, conversationId } = validatedRequest;
+    const { messages: rawMessages, conversationId } = validatedRequest;
+
+    // Sanitize user input before processing
+    const sanitizationResult = sanitizeMessages(rawMessages);
+    const messages = sanitizationResult.messages;
 
     // Get authenticated user (optional)
     const authenticatedUser = await getAuthenticatedUser();
     const userId = authenticatedUser?.userId ?? null;
 
-    // Resolve or create conversation
+    // Log sanitization warnings for monitoring (non-blocking)
+    if (
+      sanitizationResult.hasInjectionPatterns ||
+      sanitizationResult.wasTruncated
+    ) {
+      logSanitizationWarning({
+        hasInjectionPatterns: sanitizationResult.hasInjectionPatterns,
+        wasTruncated: sanitizationResult.wasTruncated,
+        totalLength: sanitizationResult.totalLength,
+        userId,
+      });
+    }
+
+    // Resolve or create conversation with timeout
+    // Pass first message content so title can be set when creating a new conversation
+    const userMessageContent = extractLastUserMessageContent(messages);
     const conversationService = new ConversationService();
-    const finalConversationId =
-      await conversationService.resolveOrCreateConversation({
+    const finalConversationId = await withTimeout(
+      conversationService.resolveOrCreateConversation({
         userId,
         conversationId,
         messages,
-      });
+        firstMessageContent: userMessageContent || undefined,
+      }),
+      TIMEOUT_CONFIG.DATABASE,
+      "Conversation resolution"
+    );
 
     // Initialize OpenAI client
     const openai = createOpenAI({
@@ -57,15 +93,23 @@ export async function POST(req: Request) {
     });
 
     // Check for self-reference query and get profile if needed (only for authenticated users)
-    const userMessageContent = extractLastUserMessageContent(messages);
     let profileText: string | null = null;
 
     if (userMessageContent && userId) {
-      const isSelfRef = await isSelfReferenceQuery(userMessageContent, openai);
+      // Pass abort signal for cancellation on timeout
+      const isSelfRef = await isSelfReferenceQuery(
+        userMessageContent,
+        openai,
+        requestSignal
+      );
 
       if (isSelfRef) {
-        // Try to get existing profile
-        const existingProfile = await getUserProfile(userId);
+        // Try to get existing profile with timeout
+        const existingProfile = await withTimeout(
+          getUserProfile(userId),
+          TIMEOUT_CONFIG.DATABASE,
+          "Get user profile"
+        );
 
         if (existingProfile?.profile_data?.profile_text) {
           profileText = existingProfile.profile_data.profile_text;
@@ -77,11 +121,17 @@ export async function POST(req: Request) {
             if (recentMessages.length >= MIN_MESSAGES_FOR_PROFILE) {
               profileText = await generatePersonalityProfile(
                 recentMessages,
-                openai
+                openai,
+                requestSignal
               );
-              await saveUserProfile(userId, {
-                profile_text: profileText,
-              });
+              // Save profile with timeout (non-critical, so we catch errors)
+              await withTimeout(
+                saveUserProfile(userId, {
+                  profile_text: profileText,
+                }),
+                TIMEOUT_CONFIG.DATABASE,
+                "Save user profile"
+              );
             } else {
               profileText =
                 "I don't have enough conversation history yet to create a personality profile. Keep chatting and I'll learn more about you!";
@@ -114,6 +164,7 @@ export async function POST(req: Request) {
       messages: convertToModelMessages(
         formattedMessages as Parameters<typeof convertToModelMessages>[0]
       ),
+      abortSignal: requestSignal,
     });
 
     // Store messages after streaming completes (only for authenticated users)
@@ -121,10 +172,10 @@ export async function POST(req: Request) {
 
     // Store user message immediately if we have userId
     // This ensures the message is stored even if the stream promise fails
+    // Note: Title is already set during conversation creation above
     if (userId && lastUserMessage) {
       try {
         const messageService = new MessageService();
-        // Store just the user message first - title will be set here
         const userContent = extractMessageContent(lastUserMessage);
         if (userContent) {
           await messageService.storeMessages({
@@ -184,12 +235,26 @@ export async function POST(req: Request) {
       });
     }
 
-    // Add conversationId to response headers so frontend can update URL
+    // Add conversationId and auth status to response headers so frontend can update URL
     const response = result.toUIMessageStreamResponse();
     response.headers.set("X-Conversation-Id", finalConversationId);
+    response.headers.set("X-Authenticated", userId ? "true" : "false");
+
+    // Clean up request timeout since response is being sent
+    cleanupRequestTimeout();
+
     return response;
   } catch (error) {
-    console.error("Chat API error:", error);
+    // Clean up request timeout on error
+    cleanupRequestTimeout();
+
+    // Log appropriate message based on error type
+    if (error instanceof TimeoutError) {
+      console.error("Chat API timeout:", error.message);
+    } else {
+      console.error("Chat API error:", error);
+    }
+
     return createErrorResponse(error);
   }
 }
