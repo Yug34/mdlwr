@@ -1,50 +1,51 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+/**
+ * Integration tests for POST/GET /api/conversations
+ *
+ * These tests use a REAL database but mock ONLY external services:
+ * - Kinde authentication
+ *
+ * This approach validates the full integration between the API and database layer.
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { POST, GET } from "@/app/api/conversations/route";
-import { createSupabaseClient } from "@/lib/supabase";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
-import { getOrCreateUser } from "@/lib/supabase/users";
+
+// Real database utilities
 import {
-  createMockSupabaseClient,
-  createMockKindeSession,
-  resetMockData,
-  addMockConversation,
-  createTestConversation,
-} from "../utils/mocks";
-import { createTestUser as createUser } from "../utils/test-helpers";
+  createTestUserInDb,
+  createTestConversationInDb,
+  cleanupTestData,
+  getConversationFromDb,
+  trackForCleanup,
+} from "../utils/test-db";
 
-// Mock dependencies
-vi.mock("@/lib/supabase", () => ({
-  createSupabaseClient: vi.fn(),
-}));
+// Integration test setup - mocks only external services
+import { createMockKindeSession } from "./setup";
 
-vi.mock("@kinde-oss/kinde-auth-nextjs/server", () => ({
-  getKindeServerSession: vi.fn(),
-}));
+// Import from setup to ensure mocks are initialized
+import "./setup";
 
-vi.mock("@/lib/supabase/users", () => ({
-  getOrCreateUser: vi.fn(),
-}));
+describe("POST /api/conversations - Integration Tests", () => {
+  let testUser: { id: string; kinde_user_id: string; email: string };
 
-describe("POST /api/conversations", () => {
-  let testUser: ReturnType<typeof createUser>;
-  let testUserId: string;
-
-  beforeEach(() => {
-    resetMockData();
+  beforeEach(async () => {
     vi.clearAllMocks();
 
-    testUser = createUser();
-    testUserId = testUser.id;
+    // Create real test user in the database
+    testUser = await createTestUserInDb();
 
-    const mockSupabase = createMockSupabaseClient();
-    vi.mocked(createSupabaseClient).mockReturnValue(mockSupabase as any);
+    // Setup Kinde auth mock
     vi.mocked(getKindeServerSession).mockReturnValue(
       createMockKindeSession({
         id: testUser.kinde_user_id,
         email: testUser.email,
       }) as any
     );
-    vi.mocked(getOrCreateUser).mockResolvedValue(testUserId);
+  });
+
+  afterEach(async () => {
+    await cleanupTestData();
   });
 
   it("should create new conversation for authenticated user", async () => {
@@ -58,6 +59,12 @@ describe("POST /api/conversations", () => {
     const data = await response.json();
     expect(data.conversationId).toBeTruthy();
     expect(typeof data.conversationId).toBe("string");
+
+    // Verify conversation was created in real database
+    trackForCleanup("conversations", data.conversationId);
+    const conversation = await getConversationFromDb(data.conversationId);
+    expect(conversation).toBeTruthy();
+    expect(conversation?.user_id).toBe(testUser.id);
   });
 
   it("should return conversation ID", async () => {
@@ -67,8 +74,12 @@ describe("POST /api/conversations", () => {
 
     const response = await POST(request);
     const data = await response.json();
+
     expect(data).toHaveProperty("conversationId");
     expect(data.conversationId).toBeTruthy();
+
+    // Track for cleanup
+    trackForCleanup("conversations", data.conversationId);
   });
 
   it("should reject unauthenticated requests", async () => {
@@ -86,45 +97,65 @@ describe("POST /api/conversations", () => {
     const data = await response.json();
     expect(data.error).toBe("Unauthorized");
   });
+
+  it("should create multiple conversations for same user", async () => {
+    const request1 = new Request("http://localhost:3000/api/conversations", {
+      method: "POST",
+    });
+    const request2 = new Request("http://localhost:3000/api/conversations", {
+      method: "POST",
+    });
+
+    const response1 = await POST(request1);
+    const response2 = await POST(request2);
+
+    expect(response1.status).toBe(200);
+    expect(response2.status).toBe(200);
+
+    const data1 = await response1.json();
+    const data2 = await response2.json();
+
+    expect(data1.conversationId).not.toBe(data2.conversationId);
+
+    // Track for cleanup
+    trackForCleanup("conversations", data1.conversationId);
+    trackForCleanup("conversations", data2.conversationId);
+  });
 });
 
-describe("GET /api/conversations", () => {
-  let testUser: ReturnType<typeof createUser>;
-  let testUserId: string;
+describe("GET /api/conversations - Integration Tests", () => {
+  let testUser: { id: string; kinde_user_id: string; email: string };
 
-  beforeEach(() => {
-    resetMockData();
+  beforeEach(async () => {
     vi.clearAllMocks();
 
-    testUser = createUser();
-    testUserId = testUser.id;
+    // Create real test user in the database
+    testUser = await createTestUserInDb();
 
-    const mockSupabase = createMockSupabaseClient();
-    vi.mocked(createSupabaseClient).mockReturnValue(mockSupabase as any);
+    // Setup Kinde auth mock
     vi.mocked(getKindeServerSession).mockReturnValue(
       createMockKindeSession({
         id: testUser.kinde_user_id,
         email: testUser.email,
       }) as any
     );
-    vi.mocked(getOrCreateUser).mockResolvedValue(testUserId);
+  });
+
+  afterEach(async () => {
+    await cleanupTestData();
   });
 
   it("should return user's conversations ordered by updated_at", async () => {
-    const conv1 = createTestConversation(testUserId, {
+    // Create conversations with different timestamps
+    const conv1 = await createTestConversationInDb(testUser.id, {
       title: "Conversation 1",
-      updated_at: new Date(Date.now() - 1000).toISOString(),
     });
-    const conv2 = createTestConversation(testUserId, {
+
+    // Small delay to ensure different timestamps
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const conv2 = await createTestConversationInDb(testUser.id, {
       title: "Conversation 2",
-      updated_at: new Date().toISOString(),
-    });
-
-    addMockConversation(conv1);
-    addMockConversation(conv2);
-
-    const request = new Request("http://localhost:3000/api/conversations", {
-      method: "GET",
     });
 
     const response = await GET();
@@ -133,13 +164,14 @@ describe("GET /api/conversations", () => {
     const data = await response.json();
     expect(data.conversations).toBeDefined();
     expect(Array.isArray(data.conversations)).toBe(true);
+    expect(data.conversations.length).toBe(2);
+
+    // Most recent should be first (descending order by updated_at)
+    expect(data.conversations[0].id).toBe(conv2.id);
+    expect(data.conversations[1].id).toBe(conv1.id);
   });
 
   it("should return empty array when no conversations", async () => {
-    const request = new Request("http://localhost:3000/api/conversations", {
-      method: "GET",
-    });
-
     const response = await GET();
     expect(response.status).toBe(200);
 
@@ -152,14 +184,45 @@ describe("GET /api/conversations", () => {
       createMockKindeSession(null) as any
     );
 
-    const request = new Request("http://localhost:3000/api/conversations", {
-      method: "GET",
-    });
-
     const response = await GET();
     expect(response.status).toBe(401);
 
     const data = await response.json();
     expect(data.error).toBe("Unauthorized");
+  });
+
+  it("should not return other users' conversations", async () => {
+    // Create another user with a conversation
+    const otherUser = await createTestUserInDb();
+    await createTestConversationInDb(otherUser.id, {
+      title: "Other User's Conversation",
+    });
+
+    // Create a conversation for our test user
+    await createTestConversationInDb(testUser.id, {
+      title: "My Conversation",
+    });
+
+    const response = await GET();
+    expect(response.status).toBe(200);
+
+    const data = await response.json();
+    expect(data.conversations.length).toBe(1);
+    expect(data.conversations[0].title).toBe("My Conversation");
+  });
+
+  it("should include conversation metadata", async () => {
+    await createTestConversationInDb(testUser.id, {
+      title: "Test Conversation",
+    });
+
+    const response = await GET();
+    expect(response.status).toBe(200);
+
+    const data = await response.json();
+    expect(data.conversations[0]).toHaveProperty("id");
+    expect(data.conversations[0]).toHaveProperty("title");
+    expect(data.conversations[0]).toHaveProperty("created_at");
+    expect(data.conversations[0]).toHaveProperty("updated_at");
   });
 });

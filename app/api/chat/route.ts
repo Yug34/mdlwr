@@ -64,6 +64,7 @@ export async function POST(req: Request) {
       sanitizationResult.hasInjectionPatterns ||
       sanitizationResult.wasTruncated
     ) {
+      // TODO: warn the user with a toast and block the message from being sent
       logSanitizationWarning({
         hasInjectionPatterns: sanitizationResult.hasInjectionPatterns,
         wasTruncated: sanitizationResult.wasTruncated,

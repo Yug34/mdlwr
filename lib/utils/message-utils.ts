@@ -2,12 +2,7 @@
  * Utilities for working with messages
  */
 
-import {
-  InputMessage,
-  MessagePart,
-  isMessageContentString,
-  isMessageParts,
-} from "@/lib/types";
+import { InputMessage, MessagePart } from "@/lib/types";
 
 /**
  * Extract text content from a message object

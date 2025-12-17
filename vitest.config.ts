@@ -5,8 +5,15 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
+    // Base setup for all tests
     setupFiles: ["./__tests__/setup.ts"],
     include: ["**/__tests__/**/*.test.ts"],
+    // Separate setup for integration tests - uses real database
+    // Integration tests get their own setup file in addition to the base setup
+    sequence: {
+      // Run tests within a file sequentially for database consistency
+      concurrent: false,
+    },
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -17,6 +24,8 @@ export default defineConfig({
         "**/next-env.d.ts",
       ],
     },
+    // Increase timeout for integration tests that hit real database
+    testTimeout: 30000,
   },
   resolve: {
     alias: {

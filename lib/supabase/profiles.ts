@@ -1,14 +1,5 @@
 import { createSupabaseClient } from "@/lib/supabase";
-
-export interface UserProfile {
-  id: string;
-  user_id: string;
-  profile_data: {
-    profile_text: string;
-  };
-  last_updated: string;
-  created_at: string;
-}
+import { UserProfile } from "@/lib/types/database";
 
 /**
  * Get user profile from database
@@ -73,5 +64,3 @@ export async function saveUserProfile(
 
   return profile;
 }
-
-
